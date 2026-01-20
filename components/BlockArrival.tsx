@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../services/db';
 import { BlockStatus, Block, StaffMember } from '../types';
@@ -188,7 +187,7 @@ export const BlockArrival: React.FC<Props> = ({ onSuccess, activeStaff, blocks }
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
               <label className={labelStyle}>Job Number</label>
-              <input ref={el => arrivalInputRefs.current[0] = el} required className={commonInputStyle} placeholder="JOB-001" value={formData.jobNo} onChange={e => setFormData({...formData, jobNo: e.target.value})} disabled={isSubmitting || isGuest} />
+              <input ref={el => { arrivalInputRefs.current[0] = el; }} required className={commonInputStyle} placeholder="JOB-001" value={formData.jobNo} onChange={e => setFormData({...formData, jobNo: e.target.value})} disabled={isSubmitting || isGuest} />
             </div>
             <div>
               <label className={labelStyle}>Company / Party</label>

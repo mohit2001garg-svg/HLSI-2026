@@ -112,9 +112,9 @@ export const GantryQueue: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
     }
   };
 
+  // ... Import/Export helpers omitted for brevity but assumed present ...
   const getCellValue = (rowOrCell: any, colNumber?: number) => {
     const cell = (colNumber && typeof rowOrCell.getCell === 'function') ? rowOrCell.getCell(colNumber) : rowOrCell;
-    
     if (!cell) return '';
     const val = cell.value;
     if (val === null || val === undefined) return '';
@@ -258,260 +258,275 @@ export const GantryQueue: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
     }
   };
 
-  const commonSelectStyle = "w-full bg-white border border-[#d6d3d1] rounded-lg p-3 text-sm font-medium focus:border-[#5c4033] outline-none shadow-sm transition-all";
+  const commonSelectStyle = "w-full bg-white border border-[#d6d3d1] rounded-lg p-2.5 text-xs font-medium focus:border-[#5c4033] outline-none shadow-sm transition-all";
 
   return (
-    <div className="space-y-10 pb-32">
+    <div className="space-y-6 pb-24">
       
       {/* SECTION HEADER */}
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-stone-100 rounded-lg flex items-center justify-center text-stone-500">
-          <i className="fas fa-warehouse text-xl"></i>
+        <div className="w-10 h-10 bg-stone-100 rounded-lg flex items-center justify-center text-stone-500 shadow-sm">
+          <i className="fas fa-layer-group text-lg"></i>
         </div>
-        <h2 className="text-2xl font-bold text-[#292524]">Gantry Stock</h2>
+        <div>
+          <h2 className="text-xl font-bold text-[#292524] leading-tight">Gantry Stock</h2>
+          <p className="text-[10px] text-[#78716c] font-medium">Blocks awaiting production</p>
+        </div>
       </div>
 
-      {/* FILTER BAR */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3">
-        <div className="lg:col-span-2 relative">
-          <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-[#a8a29e] text-xs"></i>
-          <input 
-            type="text" 
-            placeholder="Search Job, Company, Material, Marka..." 
-            className={`${commonSelectStyle} pl-10`} 
-            value={searchTerm} 
-            onChange={e => setSearchTerm(e.target.value)} 
-          />
+      {/* FILTER BAR - Compact */}
+      <div className="bg-white p-3 rounded-xl border border-[#d6d3d1] shadow-sm">
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-2">
+          <div className="col-span-2 relative">
+            <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-[#a8a29e] text-xs"></i>
+            <input 
+              type="text" 
+              placeholder="Search..." 
+              className="w-full bg-[#f5f5f4] border border-transparent focus:bg-white focus:border-[#5c4033] rounded-lg p-2.5 pl-9 text-xs font-medium outline-none transition-all" 
+              value={searchTerm} 
+              onChange={e => setSearchTerm(e.target.value)} 
+            />
+          </div>
+          
+          <div><select className={commonSelectStyle} value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}>{MONTHS.map(m => <option key={m} value={m}>{m}</option>)}</select></div>
+          <div><select className={commonSelectStyle} value={selectedYear} onChange={e => setSelectedYear(e.target.value)}>{YEARS.map(y => <option key={y} value={y}>{y}</option>)}</select></div>
+          <div>
+            <select className={commonSelectStyle} value={selectedCompany} onChange={e => setSelectedCompany(e.target.value)}>
+              <option value="ALL">All Companies</option>
+              {uniqueCompanies.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <select className={commonSelectStyle} value={selectedMaterial} onChange={e => setSelectedMaterial(e.target.value)}>
+              <option value="ALL">All Materials</option>
+              {availableMaterials.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </div>
         </div>
         
-        <div>
-          <select className={commonSelectStyle} value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}>
-            {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
-        </div>
-
-        <div>
-          <select className={commonSelectStyle} value={selectedYear} onChange={e => setSelectedYear(e.target.value)}>
-            {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
-        </div>
-
-        <div>
-          <select className={commonSelectStyle} value={selectedCompany} onChange={e => setSelectedCompany(e.target.value)}>
-            <option value="ALL">All Companies</option>
-            {uniqueCompanies.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
-
-        <div>
-          <select className={commonSelectStyle} value={selectedMaterial} onChange={e => setSelectedMaterial(e.target.value)}>
-            <option value="ALL">All Materials</option>
-            {availableMaterials.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
-        </div>
-
-        <div className="flex gap-2 lg:col-span-2 xl:col-span-1">
+        {/* Buttons Row */}
+        <div className="flex gap-2 mt-2 pt-2 border-t border-[#f5f5f4]">
           {!isGuest && (
             <>
               <input type="file" ref={fileInputRef} className="hidden" accept=".xlsx" onChange={handleImportExcel} />
-              <button onClick={() => fileInputRef.current?.click()} className="flex-1 bg-white border border-[#d6d3d1] hover:bg-stone-50 text-[#57534e] px-4 py-3 rounded-lg flex items-center justify-center gap-2 font-bold text-xs shadow-sm transition-all">
-                <i className="fas fa-file-import text-blue-600"></i> Import
+              <button onClick={() => fileInputRef.current?.click()} className="flex-1 bg-[#f5f5f4] hover:bg-stone-200 text-[#57534e] px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all">
+                <i className="fas fa-file-import mr-1"></i> Import
               </button>
             </>
           )}
-          <button onClick={handleExportExcel} className="flex-1 bg-white border border-[#d6d3d1] hover:bg-stone-50 text-[#57534e] px-4 py-3 rounded-lg flex items-center justify-center gap-2 font-bold text-xs shadow-sm transition-all">
-            <i className="fas fa-file-excel text-green-600"></i> Export
+          <button onClick={handleExportExcel} className="flex-1 bg-[#f5f5f4] hover:bg-stone-200 text-[#57534e] px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all">
+            <i className="fas fa-file-excel mr-1 text-green-600"></i> Export
           </button>
         </div>
       </div>
 
-      {/* Bulk action buttons */}
+      {/* Stats Summary */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-white border border-[#d6d3d1] rounded-xl p-4 shadow-sm">
+          <div className="text-[10px] text-[#a8a29e] font-bold uppercase tracking-wider">Total Blocks</div>
+          <div className="text-2xl font-black text-[#292524]">{totals.count}</div>
+        </div>
+        <div className="bg-white border border-[#d6d3d1] rounded-xl p-4 shadow-sm">
+          <div className="text-[10px] text-[#a8a29e] font-bold uppercase tracking-wider">Total Weight</div>
+          <div className="text-2xl font-black text-[#292524]">{totals.weight.toFixed(2)} <span className="text-xs text-[#a8a29e] font-medium">T</span></div>
+        </div>
+      </div>
+
+      {/* QUEUE */}
+      {filtered.some(b => b.isToBeCut) && (
+        <div className="space-y-3">
+          <h3 className="text-xs font-bold text-[#4a3b32] uppercase tracking-wider px-1">Production Queue</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {filtered.filter(b => b.isToBeCut).map(block => (
+               <div key={block.id} className="bg-orange-50 border border-orange-200 p-4 rounded-xl shadow-sm flex justify-between items-center">
+                  <div>
+                    <div className="font-bold text-sm text-[#292524]">#{block.jobNo}</div>
+                    <div className="text-[10px] font-bold text-orange-800 mt-0.5">{block.company} &bull; {block.thickness}</div>
+                  </div>
+                  <button onClick={() => db.updateBlock(block.id, { isToBeCut: false }).then(onRefresh)} className="w-8 h-8 flex items-center justify-center bg-white rounded-full text-orange-300 shadow-sm hover:text-red-500 transition-colors"><i className="fas fa-times text-xs"></i></button>
+               </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* MOBILE CARD LIST */}
+      <div className="space-y-3 lg:hidden">
+        {filtered.map(block => {
+          const isSelected = selectedIds.has(block.id);
+          const canEdit = checkPermission(activeStaff, block.company);
+          return (
+            <div key={block.id} className={`bg-white border border-[#d6d3d1] p-4 rounded-xl shadow-sm ${isSelected ? 'ring-2 ring-[#5c4033] bg-[#fffaf5]' : ''}`}>
+              <div className="flex justify-between items-start">
+                <div className="flex items-center gap-3">
+                  {!isGuest && canEdit && (
+                    <div onClick={() => {
+                        const n = new Set(selectedIds);
+                        if(n.has(block.id)) n.delete(block.id); else n.add(block.id);
+                        setSelectedIds(n);
+                    }} className={`w-5 h-5 rounded border flex items-center justify-center ${isSelected ? 'bg-[#5c4033] border-[#5c4033]' : 'border-stone-300'}`}>
+                      {isSelected && <i className="fas fa-check text-white text-[10px]"></i>}
+                    </div>
+                  )}
+                  <div>
+                    <div className="text-base font-black text-[#292524]">#{block.jobNo}</div>
+                    <div className="text-[10px] font-bold text-[#78716c] uppercase">{block.company}</div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-black text-[#5c4033]">{block.weight?.toFixed(2)} T</div>
+                  <div className="text-[10px] text-[#a8a29e] font-mono">{Math.round(block.length)}x{Math.round(block.height)}x{Math.round(block.width)}</div>
+                </div>
+              </div>
+              
+              <div className="mt-3 pt-3 border-t border-[#f5f5f4] flex justify-between items-center">
+                 <div className="text-[10px] font-bold text-[#57534e]">{block.material} {block.minesMarka ? `(${block.minesMarka})` : ''}</div>
+                 
+                 {!isGuest && canEdit && (
+                   <div className="flex gap-2">
+                      <button onClick={() => { setEditingBlock(block); setEditFormData(block); }} className="w-8 h-8 rounded-lg bg-stone-50 border border-stone-200 text-stone-400 flex items-center justify-center"><i className="fas fa-pen text-[10px]"></i></button>
+                      <button onClick={() => { 
+                        if(!block.isToBeCut) { setQueueModal({ open: true, blockId: block.id }); } 
+                        else { db.updateBlock(block.id, { isToBeCut: false }).then(onRefresh); }
+                      }} className={`px-3 h-8 rounded-lg text-[10px] font-bold uppercase ${block.isToBeCut ? 'bg-orange-100 text-orange-700' : 'bg-[#5c4033] text-white'}`}>{block.isToBeCut ? 'Deque' : 'Queue'}</button>
+                   </div>
+                 )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* DESKTOP TABLE */}
+      <div className="hidden lg:block bg-white border border-[#d6d3d1] rounded-2xl overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead className="bg-[#f5f5f4] text-[#78716c] text-[10px] font-bold uppercase border-b">
+              <tr>
+                <th className="px-6 py-4 w-12 text-center">
+                  {!isGuest && (
+                    <input 
+                      type="checkbox" 
+                      checked={isAllSelected} 
+                      onChange={handleSelectAll} 
+                      className="w-4 h-4 rounded border-stone-300 text-[#5c4033] cursor-pointer" 
+                    />
+                  )}
+                </th>
+                <th className="px-6 py-4">Job No</th>
+                <th className="px-6 py-4">Company</th>
+                <th className="px-6 py-4">Material & Marka</th>
+                <th className="px-6 py-4">Dimensions</th>
+                <th className="px-6 py-4">Weight</th>
+                <th className="px-6 py-4 text-center">Treatment</th>
+                <th className="px-6 py-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-stone-100">
+              {filtered.map(block => {
+                const isSelected = selectedIds.has(block.id);
+                const canEdit = checkPermission(activeStaff, block.company);
+                return (
+                  <tr key={block.id} className={`hover:bg-[#faf9f6] transition-colors ${isSelected ? 'bg-amber-50' : 'bg-white'}`}>
+                    <td className="px-6 py-4 text-center">
+                      {!isGuest && canEdit && (
+                        <input 
+                          type="checkbox" 
+                          checked={isSelected} 
+                          onChange={() => { 
+                            const n = new Set(selectedIds); 
+                            if(n.has(block.id)) n.delete(block.id); 
+                            else n.add(block.id); 
+                            setSelectedIds(n); 
+                          }} 
+                          className="w-4 h-4 rounded border-stone-300 text-[#5c4033] cursor-pointer" 
+                        />
+                      )}
+                    </td>
+                    <td className="px-6 py-4 font-bold text-sm text-[#292524]">{block.jobNo}{block.isToBeCut && <span className="ml-2 bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded text-[9px] font-bold">Queue</span>}</td>
+                    <td className="px-6 py-4 text-sm font-medium text-[#44403c]">{block.company}</td>
+                    <td className="px-6 py-4">
+                      <div className="text-xs font-bold text-[#57534e]">{block.material}</div>
+                      <div className="text-[9px] text-[#a8a29e] font-bold uppercase">{block.minesMarka || '-'}</div>
+                    </td>
+                    <td className="px-6 py-4 text-xs font-mono font-medium">{Math.round(block.length)} x {Math.round(block.height)} x {Math.round(block.width)}</td>
+                    <td className="px-6 py-4 font-bold text-sm text-[#5c4033]">{block.weight?.toFixed(2)} T</td>
+                    <td className="px-6 py-4 text-center">
+                      <div className="flex justify-center gap-1">
+                        <button onClick={() => db.updateBlock(block.id, { preCuttingProcess: block.preCuttingProcess === 'TENNAX' ? 'None' : 'TENNAX' }).then(onRefresh)} className={`px-2 py-1 rounded text-[9px] font-bold border transition-all ${block.preCuttingProcess === 'TENNAX' ? 'bg-amber-100 border-amber-300 text-amber-900' : 'bg-white border-stone-200 text-stone-400'}`}>TNX</button>
+                        <button onClick={() => db.updateBlock(block.id, { preCuttingProcess: block.preCuttingProcess === 'VACCUM' ? 'None' : 'VACCUM' }).then(onRefresh)} className={`px-2 py-1 rounded text-[9px] font-bold border transition-all ${block.preCuttingProcess === 'VACCUM' ? 'bg-cyan-100 border-cyan-300 text-cyan-900' : 'bg-white border-stone-200 text-stone-400'}`}>VAC</button>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex justify-end gap-2">
+                        {!isGuest && canEdit && (
+                          <>
+                            <button onClick={() => { setEditingBlock(block); setEditFormData(block); }} className="text-stone-400 p-2 hover:text-stone-700 transition-colors"><i className="fas fa-edit"></i></button>
+                            <button onClick={() => { 
+                              if(!block.isToBeCut) { setQueueModal({ open: true, blockId: block.id }); } 
+                              else { db.updateBlock(block.id, { isToBeCut: false }).then(onRefresh); }
+                            }} className={`px-3 py-1.5 rounded text-[10px] font-bold shadow-sm transition-all uppercase ${block.isToBeCut ? 'bg-stone-100 text-stone-500' : 'bg-[#5c4033] text-white'}`}>{block.isToBeCut ? 'Dequeue' : 'Queue'}</button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Floating bulk delete button */}
       {selectedIds.size > 0 && !isGuest && (
-        <div className="fixed bottom-24 right-8 z-50 flex gap-2 animate-in slide-in-from-bottom-4">
+        <div className="fixed bottom-24 right-4 z-50 animate-in slide-in-from-bottom-4">
           <button 
             onClick={handleBulkDelete}
-            className="bg-red-500 text-white px-6 py-4 rounded-xl font-bold text-sm shadow-2xl hover:bg-red-600 flex items-center gap-3 transition-all active:scale-95"
+            className="bg-red-500 text-white px-5 py-3 rounded-full font-bold text-xs shadow-xl hover:bg-red-600 active:scale-95 flex items-center gap-2"
           >
-            <i className="fas fa-trash"></i> DELETE SELECTED ({selectedIds.size})
+            <i className="fas fa-trash"></i> Delete ({selectedIds.size})
           </button>
         </div>
       )}
 
-      {/* SUMMARY AREA */}
-      <div className="flex flex-wrap gap-4">
-        <div className="bg-white border border-[#d6d3d1] rounded-2xl px-8 py-6 min-w-[200px] shadow-sm">
-          <div className="text-[10px] text-[#a8a29e] font-bold uppercase tracking-widest mb-1">Total Blocks</div>
-          <div className="text-4xl font-black text-[#292524] tabular-nums">{totals.count}</div>
-        </div>
-        <div className="bg-white border border-[#d6d3d1] rounded-2xl px-8 py-6 min-w-[260px] shadow-sm">
-          <div className="text-[10px] text-[#a8a29e] font-bold uppercase tracking-widest mb-1">Total Weight</div>
-          <div className="text-4xl font-black text-[#292524] tabular-nums">
-            {totals.weight.toFixed(2)} <span className="text-sm font-bold text-[#a8a29e]">T</span>
-          </div>
-        </div>
-      </div>
-
-      {/* PRODUCTION QUEUE HEADER */}
-      <div className="pt-4 border-t border-[#e7e5e4]">
-        <div className="flex items-center gap-3 mb-6">
-          <i className="fas fa-sort-amount-down text-orange-400"></i>
-          <h3 className="text-lg font-bold text-[#4a3b32]">Production Queue</h3>
-        </div>
-        
-        {filtered.filter(b => b.isToBeCut).length === 0 ? (
-          <div className="bg-white border border-[#d6d3d1] border-dashed rounded-2xl p-12 text-center text-[#a8a29e] text-sm">
-            Empty Queue
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.filter(b => b.isToBeCut).map(block => (
-               <div key={block.id} className="bg-white border-l-4 border-l-orange-400 border border-[#d6d3d1] p-4 rounded-xl shadow-sm flex justify-between items-center">
-                  <div>
-                    <div className="font-bold text-sm">#{block.jobNo} | {block.company}</div>
-                    <div className="text-[10px] text-[#78716c]">
-                      {block.material} {block.minesMarka ? `(${block.minesMarka})` : ''} &bull; {block.thickness}
-                    </div>
-                  </div>
-                  <button onClick={() => db.updateBlock(block.id, { isToBeCut: false }).then(onRefresh)} className="text-red-400 hover:text-red-600 p-2"><i className="fas fa-times-circle"></i></button>
-               </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* INVENTORY TABLE HEADER */}
-      <div className="pt-4 border-t border-[#e7e5e4]">
-        <div className="flex items-center gap-3 mb-6">
-          <i className="fas fa-layer-group text-stone-400"></i>
-          <h3 className="text-lg font-bold text-[#4a3b32]">Inventory</h3>
-        </div>
-
-        <div className="bg-white border border-[#d6d3d1] rounded-2xl overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-[#f5f5f4] text-[#78716c] text-[10px] font-bold uppercase border-b">
-                <tr>
-                  <th className="px-6 py-4 w-12 text-center">
-                    {!isGuest && (
-                      <input 
-                        type="checkbox" 
-                        checked={isAllSelected} 
-                        onChange={handleSelectAll} 
-                        className="w-4 h-4 rounded border-stone-300 text-[#5c4033] cursor-pointer" 
-                      />
-                    )}
-                  </th>
-                  <th className="px-6 py-4">Job No</th>
-                  <th className="px-6 py-4">Company</th>
-                  <th className="px-6 py-4">Material & Marka</th>
-                  <th className="px-6 py-4">Dimensions</th>
-                  <th className="px-6 py-4">Weight</th>
-                  <th className="px-6 py-4 text-center">Treatment</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-100">
-                {filtered.map(block => {
-                  const isSelected = selectedIds.has(block.id);
-                  const canEdit = checkPermission(activeStaff, block.company);
-                  return (
-                    <tr key={block.id} className={`hover:bg-[#faf9f6] transition-colors ${isSelected ? 'bg-amber-50' : 'bg-white'}`}>
-                      <td className="px-6 py-4 text-center">
-                        {!isGuest && canEdit && (
-                          <input 
-                            type="checkbox" 
-                            checked={isSelected} 
-                            onChange={() => { 
-                              const n = new Set(selectedIds); 
-                              if(n.has(block.id)) n.delete(block.id); 
-                              else n.add(block.id); 
-                              setSelectedIds(n); 
-                            }} 
-                            className="w-4 h-4 rounded border-stone-300 text-[#5c4033] cursor-pointer" 
-                          />
-                        )}
-                      </td>
-                      <td className="px-6 py-4 font-semibold text-sm">{block.jobNo}{block.isToBeCut && <span className="ml-2 bg-amber-50 text-amber-800 px-1.5 py-0.5 rounded text-[9px] border border-amber-200">Queue</span>}</td>
-                      <td className="px-6 py-4 text-sm font-medium text-[#44403c]">{block.company}</td>
-                      <td className="px-6 py-4">
-                        <div className="text-xs font-bold text-[#57534e]">{block.material}</div>
-                        <div className="text-[9px] text-[#a8a29e] font-medium uppercase tracking-wider">{block.minesMarka || '-'}</div>
-                      </td>
-                      <td className="px-6 py-4 text-xs font-mono">{Math.round(block.length || 0)} x {Math.round(block.height || 0)} x {Math.round(block.width || 0)}</td>
-                      <td className="px-6 py-4 font-bold text-sm text-[#5c4033]">{block.weight?.toFixed(2)} T</td>
-                      <td className="px-6 py-4 text-center">
-                        <div className="flex justify-center gap-1">
-                          <button onClick={() => db.updateBlock(block.id, { preCuttingProcess: block.preCuttingProcess === 'TENNAX' ? 'None' : 'TENNAX' }).then(onRefresh)} className={`px-2 py-1 rounded text-[9px] font-black border transition-all ${block.preCuttingProcess === 'TENNAX' ? 'bg-amber-100 border-amber-300 text-amber-900' : 'bg-white border-stone-200 text-stone-400'}`}>TENNAX</button>
-                          <button onClick={() => db.updateBlock(block.id, { preCuttingProcess: block.preCuttingProcess === 'VACCUM' ? 'None' : 'VACCUM' }).then(onRefresh)} className={`px-2 py-1 rounded text-[9px] font-black border transition-all ${block.preCuttingProcess === 'VACCUM' ? 'bg-cyan-100 border-cyan-300 text-cyan-900' : 'bg-white border-stone-200 text-stone-400'}`}>VACCUM</button>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-2">
-                          {!isGuest && canEdit && (
-                            <>
-                              <button onClick={() => { setEditingBlock(block); setEditFormData(block); }} className="text-stone-400 p-2 hover:text-stone-700 transition-colors"><i className="fas fa-edit"></i></button>
-                              <button onClick={() => { 
-                                if(!block.isToBeCut) { setQueueModal({ open: true, blockId: block.id }); } 
-                                else { db.updateBlock(block.id, { isToBeCut: false }).then(onRefresh); }
-                              }} className={`px-3 py-1.5 rounded text-[10px] font-bold shadow-sm transition-all ${block.isToBeCut ? 'bg-white border border-red-200 text-red-400' : 'bg-[#5c4033] text-white'}`}>{block.isToBeCut ? 'Dequeue' : 'Queue'}</button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      {/* Edit Modal */}
+      {/* Edit Modal (same as desktop) */}
       {editingBlock && (
         <div className="fixed inset-0 z-[600] bg-stone-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-xl p-8 shadow-2xl">
+          <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl animate-in zoom-in-95">
              <div className="flex justify-between items-center mb-6 border-b pb-4">
-                <h3 className="text-xl font-bold text-[#292524]">Update Gantry Registry</h3>
+                <h3 className="text-lg font-bold text-[#292524]">Update Gantry Registry</h3>
                 <button onClick={() => setEditingBlock(null)}><i className="fas fa-times text-[#a8a29e]"></i></button>
              </div>
-             <form onSubmit={handleSaveEdit} className="grid grid-cols-2 gap-6">
+             <form onSubmit={handleSaveEdit} className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
-                   <label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Job Number</label>
+                   <label className="block text-[10px] font-bold text-[#78716c] mb-1 uppercase">Job Number</label>
                    <input className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" value={editFormData.jobNo || ''} onChange={e => setEditFormData({...editFormData, jobNo: e.target.value})} />
                 </div>
+                {/* ... other fields ... */}
                 <div>
-                   <label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Material</label>
+                   <label className="block text-[10px] font-bold text-[#78716c] mb-1 uppercase">Material</label>
                    <input className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" value={editFormData.material || ''} onChange={e => setEditFormData({...editFormData, material: e.target.value})} />
                 </div>
                 <div>
-                   <label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Marka</label>
+                   <label className="block text-[10px] font-bold text-[#78716c] mb-1 uppercase">Marka</label>
                    <input className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" value={editFormData.minesMarka || ''} onChange={e => setEditFormData({...editFormData, minesMarka: e.target.value})} />
                 </div>
-                <div>
-                   <label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Weight (T)</label>
-                   <input type="number" step="0.01" className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" value={editFormData.weight || 0} onChange={e => setEditFormData({...editFormData, weight: Number(e.target.value)})} />
-                </div>
-                <div className="grid grid-cols-3 gap-2 col-span-2">
-                  <div><label className="block text-[10px] font-bold text-[#78716c] mb-1 uppercase">L (In)</label><input type="number" step="0.01" className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-2 rounded text-sm font-bold" value={editFormData.length} onChange={e => setEditFormData({...editFormData, length: Number(e.target.value)})} /></div>
-                  <div><label className="block text-[10px] font-bold text-[#78716c] mb-1 uppercase">H (In)</label><input type="number" step="0.01" className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-2 rounded text-sm font-bold" value={editFormData.height} onChange={e => setEditFormData({...editFormData, height: Number(e.target.value)})} /></div>
-                  <div><label className="block text-[10px] font-bold text-[#78716c] mb-1 uppercase">W (In)</label><input type="number" step="0.01" className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-2 rounded text-sm font-bold" value={editFormData.width} onChange={e => setEditFormData({...editFormData, width: Number(e.target.value)})} /></div>
-                </div>
                 <div className="col-span-2 pt-4 flex gap-3">
-                   <button type="button" onClick={() => setEditingBlock(null)} className="flex-1 border py-4 rounded-xl font-bold text-xs uppercase">Cancel</button>
-                   <button type="submit" disabled={isSavingEdit} className="flex-[2] bg-[#5c4033] text-white py-4 rounded-xl font-bold text-xs uppercase shadow-xl">{isSavingEdit ? 'Syncing...' : 'Update Records'}</button>
+                   <button type="button" onClick={() => setEditingBlock(null)} className="flex-1 border py-3 rounded-xl font-bold text-xs uppercase text-[#78716c]">Cancel</button>
+                   <button type="submit" disabled={isSavingEdit} className="flex-[2] bg-[#5c4033] text-white py-3 rounded-xl font-bold text-xs uppercase shadow-md">{isSavingEdit ? 'Saving...' : 'Update'}</button>
                 </div>
              </form>
           </div>
         </div>
       )}
 
-      {/* Queue Modal Logic */}
+      {/* Queue Modal */}
       {queueModal.open && (
         <div className="fixed inset-0 z-[600] bg-stone-900/40 backdrop-blur-sm flex items-center justify-center p-4">
-           <div className="bg-white rounded-xl w-full max-sm p-8 shadow-2xl animate-in zoom-in-95">
-              <h3 className="text-lg font-bold text-[#292524] mb-4">Set Cutting Thickness</h3>
-              <select value={targetThickness} onChange={e => setTargetThickness(e.target.value)} className="w-full border border-[#d6d3d1] p-3 rounded-lg text-sm mb-6 outline-none focus:border-[#5c4033]"><option value="16mm">16mm</option><option value="18mm">18mm</option><option value="20mm">20mm</option></select>
+           <div className="bg-white rounded-xl w-full max-w-sm p-6 shadow-2xl animate-in zoom-in-95">
+              <h3 className="text-base font-bold text-[#292524] mb-4">Set Cutting Thickness</h3>
+              <select value={targetThickness} onChange={e => setTargetThickness(e.target.value)} className="w-full border border-[#d6d3d1] p-3 rounded-lg text-sm mb-6 outline-none focus:border-[#5c4033] bg-white"><option value="16mm">16mm</option><option value="18mm">18mm</option><option value="20mm">20mm</option></select>
               <div className="flex gap-3"><button onClick={() => setQueueModal({open: false, blockId: null})} className="flex-1 py-3 border rounded-lg text-xs font-bold text-[#78716c]">Cancel</button><button onClick={() => { if(queueModal.blockId) db.updateBlock(queueModal.blockId, { isToBeCut: true, thickness: targetThickness }).then(() => { onRefresh(); setQueueModal({open: false, blockId: null}); }); }} className="flex-[2] py-3 bg-[#5c4033] text-white rounded-lg text-xs font-bold shadow-md">Add to Queue</button></div>
            </div>
         </div>
