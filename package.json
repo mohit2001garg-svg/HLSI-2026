@@ -1,0 +1,45 @@
+
+{
+  "name": "hi-line-stone-management",
+  "version": "2.0.0",
+  "description": "Cross-platform management system for Marble Factory Operations",
+  "main": "main.js",
+  "scripts": {
+    "start": "npm run build && electron .",
+    "build": "node build.js",
+    "resources": "node build-resources.js && npx @capacitor/assets generate --android --iconBackgroundColor \"#ffffff\" --splashBackgroundColor \"#ffffff\"",
+    "build:exe": "npm run build && electron-builder build --win --publish never",
+    "build:apk": "npm run build && (npx cap add android || npx cap sync android) && npm run resources && npx cap sync android && npx cap copy android && cd android && ./gradlew clean && ./gradlew assembleDebug",
+    "cap:init": "cap init \"HI-LINE STONE\" com.hilinestone.app --web-dir www",
+    "cap:add": "cap add android"
+  },
+  "author": "Expert Developer",
+  "license": "MIT",
+  "dependencies": {
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/android": "^6.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "@supabase/supabase-js": "^2.45.1",
+    "exceljs": "^4.4.0",
+    "@google/genai": "^1.37.0",
+    "esbuild": "^0.21.0"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3",
+    "@capacitor/cli": "^6.0.0",
+    "@capacitor/assets": "^3.0.5"
+  },
+  "build": {
+    "appId": "com.hilinestone.app",
+    "productName": "HiLineStone",
+    "win": {
+      "target": "portable"
+    },
+    "files": [
+      "www/**/*",
+      "main.js"
+    ]
+  }
+}

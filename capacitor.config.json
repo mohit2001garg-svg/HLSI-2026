@@ -1,0 +1,8 @@
+{
+  "appId": "com.hilinestone.app",
+  "appName": "HI-LINE STONE",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  }
+}
