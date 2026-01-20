@@ -1,0 +1,88 @@
+
+name: Build App
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+          
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          
+      - name: Install Dependencies
+        run: npm install
+        
+      - name: Build Web Assets
+        run: npm run build
+        
+      - name: Capacitor Add Android
+        run: npx cap add android || npx cap sync android
+
+      - name: Prepare Resource Directory
+        run: |
+          mkdir -p assets
+          # Find logo.png in asset/ folder regardless of case
+          LOGO_PATH=$(find asset -maxdepth 1 -iname "logo.png" | head -n 1)
+          if [ -z "$LOGO_PATH" ]; then
+            echo "❌ ERROR: logo.png not found in asset/ folder"
+            exit 1
+          fi
+          echo "✅ Found logo at: $LOGO_PATH"
+          cp "$LOGO_PATH" assets/icon.png
+          cp "$LOGO_PATH" assets/icon-only.png
+          cp "$LOGO_PATH" assets/icon-foreground.png
+          cp "$LOGO_PATH" assets/splash.png
+          cp "$LOGO_PATH" assets/splash-only.png
+
+      - name: Generate Android Icons
+        run: npx @capacitor/assets generate --android --iconBackgroundColor "#ffffff" --splashBackgroundColor "#ffffff"
+        
+      - name: Final Capacitor Sync
+        run: npx cap sync android
+        
+      - name: Build APK (Clean Build)
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew clean
+          ./gradlew assembleDebug
+        
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+      - name: Install Dependencies
+        run: npm install
+      - name: Build Exe
+        run: npm run build:exe
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-portable
+          path: dist/*.exe
