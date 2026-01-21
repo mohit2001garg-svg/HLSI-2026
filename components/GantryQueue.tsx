@@ -112,7 +112,6 @@ export const GantryQueue: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
     }
   };
 
-  // ... Import/Export helpers omitted for brevity but assumed present ...
   const getCellValue = (rowOrCell: any, colNumber?: number) => {
     const cell = (colNumber && typeof rowOrCell.getCell === 'function') ? rowOrCell.getCell(colNumber) : rowOrCell;
     if (!cell) return '';
@@ -355,6 +354,8 @@ export const GantryQueue: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
         {filtered.map(block => {
           const isSelected = selectedIds.has(block.id);
           const canEdit = checkPermission(activeStaff, block.company);
+          const isDisabled = isGuest || !canEdit;
+          
           return (
             <div key={block.id} className={`bg-white border border-[#d6d3d1] p-4 rounded-xl shadow-sm ${isSelected ? 'ring-2 ring-[#5c4033] bg-[#fffaf5]' : ''}`}>
               <div className="flex justify-between items-start">
@@ -378,9 +379,27 @@ export const GantryQueue: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
                   <div className="text-[10px] text-[#a8a29e] font-mono">{Math.round(block.length)}x{Math.round(block.height)}x{Math.round(block.width)}</div>
                 </div>
               </div>
+
+              {/* Treatment Buttons for Mobile - Always Visible */}
+              <div className="flex gap-2 my-3 pb-3 border-b border-[#f5f5f4]">
+                  <button 
+                    disabled={isDisabled}
+                    onClick={() => db.updateBlock(block.id, { preCuttingProcess: block.preCuttingProcess === 'TENNAX' ? 'None' : 'TENNAX' }).then(onRefresh)} 
+                    className={`flex-1 py-2 rounded-lg text-[10px] font-bold border transition-all ${block.preCuttingProcess === 'TENNAX' ? 'bg-amber-100 border-amber-300 text-amber-900 shadow-inner' : 'bg-white border-stone-200 text-stone-400'} ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    TENNAX
+                  </button>
+                  <button 
+                    disabled={isDisabled}
+                    onClick={() => db.updateBlock(block.id, { preCuttingProcess: block.preCuttingProcess === 'VACCUM' ? 'None' : 'VACCUM' }).then(onRefresh)} 
+                    className={`flex-1 py-2 rounded-lg text-[10px] font-bold border transition-all ${block.preCuttingProcess === 'VACCUM' ? 'bg-cyan-100 border-cyan-300 text-cyan-900 shadow-inner' : 'bg-white border-stone-200 text-stone-400'} ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    VACUUM
+                  </button>
+              </div>
               
-              <div className="mt-3 pt-3 border-t border-[#f5f5f4] flex justify-between items-center">
-                 <div className="text-[10px] font-bold text-[#57534e]">{block.material} {block.minesMarka ? `(${block.minesMarka})` : ''}</div>
+              <div className="mt-3 flex justify-between items-center">
+                 <div className="text-[10px] font-bold text-[#57534e] truncate max-w-[120px]">{block.material} {block.minesMarka ? `(${block.minesMarka})` : ''}</div>
                  
                  {!isGuest && canEdit && (
                    <div className="flex gap-2">
