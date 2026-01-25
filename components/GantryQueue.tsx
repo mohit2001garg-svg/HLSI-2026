@@ -33,7 +33,7 @@ export const GantryQueue: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
 
   // Sales Modal State
   const [saleModalOpen, setSaleModalOpen] = useState<{ open: boolean; block: Block | null }>({ open: false, block: null });
-  const [saleFormData, setSaleFormData] = useState({ soldTo: '', billNo: '', soldSqFt: '' });
+  const [saleFormData, setSaleFormData] = useState({ soldTo: '', billNo: '', soldWeight: '' });
 
   const rawGantryBlocks = useMemo(() => 
     blocks.filter(b => b.status === BlockStatus.GANTRY && !localHiddenIds.has(b.id)), 
@@ -124,17 +124,21 @@ export const GantryQueue: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
       const soldAt = new Date().toISOString();
       const block = saleModalOpen.block;
       
-      // Update the block to SOLD status
+      // For Gantry sales, we record in Tons (Weight), not SqFt.
+      // We set totalSqFt to 0 to indicate it's a weight-based sale.
+      const finalWeight = Number(saleFormData.soldWeight) || block.weight;
+
       await db.updateBlock(block.id, {
         status: BlockStatus.SOLD,
         soldTo: saleFormData.soldTo.toUpperCase(),
         billNo: saleFormData.billNo.toUpperCase(),
-        totalSqFt: Number(saleFormData.soldSqFt) || 0, // In gantry, we might manually enter this
+        weight: finalWeight,
+        totalSqFt: 0, 
         soldAt: soldAt
       });
 
       setSaleModalOpen({ open: false, block: null });
-      setSaleFormData({ soldTo: '', billNo: '', soldSqFt: '' });
+      setSaleFormData({ soldTo: '', billNo: '', soldWeight: '' });
       onRefresh();
       alert(`Sale recorded successfully.`);
     } catch (err: any) {
@@ -145,7 +149,7 @@ export const GantryQueue: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
   };
 
   const openSaleModal = (block: Block) => {
-    setSaleFormData({ soldTo: '', billNo: '', soldSqFt: '' }); // Reset
+    setSaleFormData({ soldTo: '', billNo: '', soldWeight: block.weight?.toString() || '' });
     setSaleModalOpen({ open: true, block });
   };
 
@@ -572,15 +576,15 @@ export const GantryQueue: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
         </div>
       )}
 
-      {/* Sale Modal */}
+      {/* Sale Modal - UPDATED FOR WEIGHT */}
       {saleModalOpen.open && (
         <div className="fixed inset-0 z-[600] bg-stone-900/80 backdrop-blur-md flex items-center justify-center p-4">
            <div className="bg-white rounded-2xl w-full max-w-lg p-8 shadow-2xl animate-in zoom-in-95">
               <div className="flex justify-between items-start mb-6 border-b pb-4">
                 <div>
-                   <h3 className="text-2xl font-black text-[#5c4033] uppercase italic">Record Sale</h3>
+                   <h3 className="text-2xl font-black text-[#5c4033] uppercase italic">Record Block Sale</h3>
                    {saleModalOpen.block && (
-                     <div className="text-[10px] font-bold text-stone-500 mt-1 uppercase">Job #{saleModalOpen.block.jobNo} &bull; Weight: {saleModalOpen.block.weight?.toFixed(2)} T</div>
+                     <div className="text-[10px] font-bold text-stone-500 mt-1 uppercase">Job #{saleModalOpen.block.jobNo} &bull; Current Weight: {saleModalOpen.block.weight?.toFixed(2)} T</div>
                    )}
                 </div>
                 <button onClick={() => setSaleModalOpen({open: false, block: null})} className="text-stone-400 hover:text-stone-600"><i className="fas fa-times"></i></button>
@@ -598,17 +602,20 @@ export const GantryQueue: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
                  
                  <div className="bg-[#fffaf5] p-5 rounded-xl border border-amber-100">
                     <div className="flex justify-between items-center mb-1.5">
-                       <label className="block text-[10px] font-bold text-amber-800 uppercase">Estimated Quantity (SqFt)</label>
+                       <label className="block text-[10px] font-bold text-amber-800 uppercase">Sale Weight (Tons)</label>
                     </div>
                     <input 
                       type="number" 
                       step="0.01" 
                       required 
                       className="w-full bg-white border border-[#d6d3d1] p-4 rounded-xl text-xl font-black text-[#5c4033] focus:border-[#5c4033] outline-none" 
-                      value={saleFormData.soldSqFt} 
-                      onChange={e => setSaleFormData({...saleFormData, soldSqFt: e.target.value})} 
+                      value={saleFormData.soldWeight} 
+                      onChange={e => setSaleFormData({...saleFormData, soldWeight: e.target.value})} 
                       placeholder="0.00"
                     />
+                    <div className="mt-2 text-[9px] text-stone-400">
+                        *Updating weight here will overwrite block record.
+                    </div>
                  </div>
                  
                  <div className="flex gap-4 pt-4">

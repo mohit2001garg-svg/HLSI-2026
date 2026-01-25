@@ -26,7 +26,7 @@ export const SoldHistory: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
   
   // Edit State
   const [editingBlock, setEditingBlock] = useState<Block | null>(null);
-  const [editFormData, setEditFormData] = useState({ soldTo: '', billNo: '', soldAt: '', totalSqFt: '' });
+  const [editFormData, setEditFormData] = useState({ soldTo: '', billNo: '', soldAt: '', totalSqFt: '', weight: '' });
   const [isSaving, setIsSaving] = useState(false);
 
   const uniqueCompanies = useMemo(() => {
@@ -66,7 +66,8 @@ export const SoldHistory: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
         soldTo: block.soldTo || '',
         billNo: block.billNo || '',
         soldAt: block.soldAt ? new Date(block.soldAt).toISOString().split('T')[0] : '',
-        totalSqFt: block.totalSqFt?.toString() || ''
+        totalSqFt: block.totalSqFt?.toString() || '',
+        weight: block.weight?.toString() || ''
     });
   };
 
@@ -79,7 +80,8 @@ export const SoldHistory: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
             soldTo: editFormData.soldTo.toUpperCase(),
             billNo: editFormData.billNo.toUpperCase(),
             soldAt: new Date(editFormData.soldAt).toISOString(),
-            totalSqFt: Number(editFormData.totalSqFt)
+            totalSqFt: Number(editFormData.totalSqFt),
+            weight: Number(editFormData.weight)
         });
         setEditingBlock(null);
         onRefresh();
@@ -100,6 +102,9 @@ export const SoldHistory: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
         const parentBlock = blocks.find(k => k.jobNo === potentialParentJobNo && k.company === b.company && k.status === BlockStatus.IN_STOCKYARD);
         if (parentBlock) remainingSqFt = parentBlock.totalSqFt || 0;
       }
+      
+      const soldQtyDisplay = soldSqFt > 0 ? `${soldSqFt.toFixed(2)} SqFt` : `${b.weight.toFixed(2)} T`;
+
       return {
         date: new Date(b.soldAt!).toLocaleDateString(), 
         billNo: b.billNo, 
@@ -108,7 +113,7 @@ export const SoldHistory: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
         company: b.company, 
         material: b.material, 
         totalStock: (soldSqFt + remainingSqFt).toFixed(2),
-        soldSqFt: soldSqFt.toFixed(2), 
+        soldQty: soldQtyDisplay, 
         remainingSqFt: remainingSqFt.toFixed(2),
         operator: b.enteredBy
       };
@@ -122,7 +127,7 @@ export const SoldHistory: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
       { header: 'Company', key: 'company', width: 20 }, 
       { header: 'Material', key: 'material', width: 20 },
       { header: 'Total Stock (SqFt)', key: 'totalStock', width: 15 }, 
-      { header: 'Sold Area (SqFt)', key: 'soldSqFt', width: 15 },
+      { header: 'Sold Qty', key: 'soldQty', width: 15 },
       { header: 'Remaining (SqFt)', key: 'remainingSqFt', width: 15 }, 
       { header: 'Operator', key: 'operator', width: 15 },
     ];
@@ -130,6 +135,10 @@ export const SoldHistory: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
     const fileNameYear = selectedYear !== 'ALL' ? selectedYear : 'All';
     exportToExcel(reportData, columns, 'Sales Ledger', `Sales_Report_${fileNameMonth}_${fileNameYear}_${new Date().toISOString().split('T')[0]}`);
   };
+
+  // Summaries
+  const totalAreaSold = soldBlocks.reduce((a, b) => a + (b.totalSqFt || 0), 0);
+  const totalWeightSold = soldBlocks.filter(b => !b.totalSqFt).reduce((a, b) => a + (b.weight || 0), 0);
 
   return (
     <div className="space-y-8 pb-20">
@@ -167,9 +176,21 @@ export const SoldHistory: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
       
       <div className="flex justify-start mb-8">
         <div className="bg-white border border-[#d6d3d1] p-6 rounded-xl shadow-sm min-w-[300px]">
-          <div className="text-[10px] text-[#a8a29e] font-medium mb-2 uppercase tracking-widest">Total Area Sold (Sq.Ft)</div>
-          <div className="text-4xl font-semibold text-[#5c4033]">
-            {soldBlocks.reduce((a, b) => a + (b.totalSqFt || 0), 0).toFixed(2)}
+          <div className="text-[10px] text-[#a8a29e] font-medium mb-2 uppercase tracking-widest">Total Sales</div>
+          <div className="flex gap-8">
+             <div>
+                <div className="text-xs text-[#78716c]">Area Sold</div>
+                <div className="text-3xl font-semibold text-[#5c4033]">
+                   {totalAreaSold.toFixed(2)} <span className="text-sm font-bold text-[#a8a29e]">ft</span>
+                </div>
+             </div>
+             <div className="w-px bg-[#d6d3d1]"></div>
+             <div>
+                <div className="text-xs text-[#78716c]">Weight Sold</div>
+                <div className="text-3xl font-semibold text-[#5c4033]">
+                   {totalWeightSold.toFixed(2)} <span className="text-sm font-bold text-[#a8a29e]">T</span>
+                </div>
+             </div>
           </div>
         </div>
       </div>
@@ -182,12 +203,13 @@ export const SoldHistory: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
                 <th className="px-8 py-5">Sale Date</th>
                 <th className="px-8 py-5">Bill & Customer</th>
                 <th className="px-8 py-5">Block Identifier</th>
-                <th className="px-8 py-5 text-center">SqFt Sold</th>
+                <th className="px-8 py-5 text-center">Sold Qty</th>
                 <th className="px-8 py-5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
               {soldBlocks.map(block => {
+                const isAreaSale = (block.totalSqFt || 0) > 0;
                 return (
                 <tr key={block.id} className="hover:bg-[#faf9f6] transition-colors bg-white">
                   <td className="px-8 py-5">
@@ -201,7 +223,11 @@ export const SoldHistory: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
                     <div className="text-[10px] font-medium">{block.jobNo} ({block.company})</div>
                   </td>
                   <td className="px-8 py-5 text-center">
-                    <div className="text-lg font-semibold text-[#5c4033]">{block.totalSqFt?.toFixed(2)} ft</div>
+                    {isAreaSale ? (
+                        <div className="text-lg font-semibold text-[#5c4033]">{block.totalSqFt?.toFixed(2)} ft</div>
+                    ) : (
+                        <div className="text-lg font-semibold text-[#5c4033]">{block.weight?.toFixed(2)} T</div>
+                    )}
                   </td>
                   <td className="px-8 py-5 text-right">
                     {!isGuest && (
@@ -251,8 +277,18 @@ export const SoldHistory: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
                             <input type="date" className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" value={editFormData.soldAt} onChange={e => setEditFormData({...editFormData, soldAt: e.target.value})} required />
                         </div>
                         <div>
-                            <label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">SqFt Sold</label>
-                            <input type="number" step="0.01" className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" value={editFormData.totalSqFt} onChange={e => setEditFormData({...editFormData, totalSqFt: e.target.value})} required />
+                            {/* Dynamically show input based on what was originally sold */}
+                            {Number(editFormData.totalSqFt) > 0 ? (
+                                <>
+                                    <label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">SqFt Sold</label>
+                                    <input type="number" step="0.01" className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" value={editFormData.totalSqFt} onChange={e => setEditFormData({...editFormData, totalSqFt: e.target.value})} required />
+                                </>
+                            ) : (
+                                <>
+                                    <label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Weight Sold (T)</label>
+                                    <input type="number" step="0.01" className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" value={editFormData.weight} onChange={e => setEditFormData({...editFormData, weight: e.target.value})} required />
+                                </>
+                            )}
                         </div>
                     </div>
                     <div className="pt-4 flex gap-3">
