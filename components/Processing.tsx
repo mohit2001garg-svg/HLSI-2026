@@ -28,6 +28,11 @@ export const Processing: React.FC<Props> = ({ blocks, onRefresh, isGuest, active
   const [finishData, setFinishData] = useState({ slabLength: '', slabWidth: '', slabCount: '', totalSqFt: '' });
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+  // Sales Modal State
+  const [saleModalOpen, setSaleModalOpen] = useState<{ open: boolean; block: Block | null }>({ open: false, block: null });
+  const [saleFormData, setSaleFormData] = useState({ soldTo: '', billNo: '', soldSqFt: '' });
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
   // Derive unique companies for the dropdown
   const companies = useMemo(() => {
     const list = blocks
@@ -129,7 +134,40 @@ export const Processing: React.FC<Props> = ({ blocks, onRefresh, isGuest, active
     setFinishModalOpen({ id: block.id, action });
   };
 
-  // ... helper methods like getCellValue, getNumericValue, handleImportExcel omitted for brevity but remain ...
+  const openSaleModal = (block: Block) => {
+    if (!checkPermission(activeStaff, block.company)) return;
+    setSaleFormData({ soldTo: '', billNo: '', soldSqFt: block.totalSqFt?.toFixed(2) || '' }); 
+    setSaleModalOpen({ open: true, block });
+  };
+
+  const handleExecuteSale = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isGuest || !saleModalOpen.block) return;
+    setIsSavingEdit(true);
+    try {
+      const soldAt = new Date().toISOString();
+      const block = saleModalOpen.block;
+      
+      // Update the block to SOLD status
+      await db.updateBlock(block.id, {
+        status: BlockStatus.SOLD,
+        soldTo: saleFormData.soldTo.toUpperCase(),
+        billNo: saleFormData.billNo.toUpperCase(),
+        totalSqFt: Number(saleFormData.soldSqFt) || 0,
+        soldAt: soldAt
+      });
+
+      setSaleModalOpen({ open: false, block: null });
+      setSaleFormData({ soldTo: '', billNo: '', soldSqFt: '' });
+      onRefresh();
+      alert(`Sale recorded successfully.`);
+    } catch (err: any) {
+      alert("Sale failed: " + err.message);
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
   const getCellValue = (rowOrCell: any, colNumber?: number) => {
     const cell = (colNumber && typeof rowOrCell.getCell === 'function') ? rowOrCell.getCell(colNumber) : rowOrCell;
     if (!cell) return '';
@@ -383,6 +421,7 @@ export const Processing: React.FC<Props> = ({ blocks, onRefresh, isGuest, active
                 <div className="flex justify-end gap-2 mt-3 pt-2 border-t border-[#f5f5f4]">
                   {!isGuest && canEdit ? (
                     <>
+                      <button onClick={() => openSaleModal(block)} className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-[10px] font-bold text-amber-600 uppercase tracking-wider"><i className="fas fa-shopping-cart"></i></button>
                       <button onClick={() => openFinishModal(block, 'resin')} className="flex-1 px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-[10px] font-bold text-cyan-600 uppercase tracking-wider">To Resin</button>
                       <button onClick={() => openFinishModal(block, 'finish')} className="flex-1 px-3 py-2 bg-[#5c4033] text-white rounded-lg text-[10px] font-bold uppercase tracking-wider shadow-sm">Ready</button>
                       <button onClick={() => handleDelete(block.id, block.jobNo)} className="px-3 py-2 text-red-400 bg-red-50 rounded-lg"><i className="fas fa-trash-alt text-xs"></i></button>
@@ -471,6 +510,7 @@ export const Processing: React.FC<Props> = ({ blocks, onRefresh, isGuest, active
                         <div className="flex justify-end gap-1">
                           {!isGuest && canEdit ? (
                             <>
+                              <button onClick={() => openSaleModal(block)} className="w-8 h-8 flex items-center justify-center bg-white border border-amber-200 text-amber-600 rounded-lg hover:bg-amber-50 transition-all shadow-sm" title="Record Sale"><i className="fas fa-shopping-cart text-xs"></i></button>
                               <button onClick={() => openFinishModal(block, 'resin')} className="w-8 h-8 flex items-center justify-center bg-white border border-cyan-200 text-cyan-600 rounded-lg hover:bg-cyan-50 transition-all shadow-sm" title="Move to Resin"><i className="fas fa-flask text-xs"></i></button>
                               <button onClick={() => openFinishModal(block, 'finish')} className="bg-[#5c4033] hover:bg-[#4a3b32] text-white px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all shadow-md active:scale-95">Ready</button>
                               <button disabled={loadingId === block.id} onClick={() => handleDelete(block.id, block.jobNo)} className="w-8 h-8 flex items-center justify-center bg-white border border-red-100 text-red-400 rounded-lg hover:bg-red-50 transition-all shadow-sm">{loadingId === block.id ? <i className="fas fa-spinner fa-spin text-xs"></i> : <i className="fas fa-trash-alt text-xs"></i>}</button>
@@ -491,7 +531,56 @@ export const Processing: React.FC<Props> = ({ blocks, onRefresh, isGuest, active
         </div>
       </div>
 
-      {/* MODAL */}
+      {/* SALE MODAL */}
+      {saleModalOpen.open && (
+        <div className="fixed inset-0 z-[600] bg-stone-900/80 backdrop-blur-md flex items-center justify-center p-4">
+           <div className="bg-white rounded-2xl w-full max-w-lg p-8 shadow-2xl animate-in zoom-in-95">
+              <div className="flex justify-between items-start mb-6 border-b pb-4">
+                <div>
+                   <h3 className="text-2xl font-black text-[#5c4033] uppercase italic">Record Sale</h3>
+                   {saleModalOpen.block && (
+                     <div className="text-[10px] font-bold text-stone-500 mt-1 uppercase">Job #{saleModalOpen.block.jobNo} &bull; Est SqFt: {saleModalOpen.block.totalSqFt?.toFixed(2)}</div>
+                   )}
+                </div>
+                <button onClick={() => setSaleModalOpen({open: false, block: null})} className="text-stone-400 hover:text-stone-600"><i className="fas fa-times"></i></button>
+              </div>
+
+              <form onSubmit={handleExecuteSale} className="space-y-6">
+                 <div>
+                    <label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Customer Name</label>
+                    <input required className="w-full bg-white border border-[#d6d3d1] p-4 rounded-xl text-sm font-bold uppercase text-[#5c4033] focus:border-[#5c4033] outline-none" placeholder="NAME OF BUYER" value={saleFormData.soldTo} onChange={e => setSaleFormData({...saleFormData, soldTo: e.target.value})} />
+                 </div>
+                 <div>
+                    <label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Bill / Invoice No</label>
+                    <input required className="w-full bg-white border border-[#d6d3d1] p-4 rounded-xl text-sm font-bold uppercase text-[#5c4033] focus:border-[#5c4033] outline-none" placeholder="INV-2025-..." value={saleFormData.billNo} onChange={e => setSaleFormData({...saleFormData, billNo: e.target.value})} />
+                 </div>
+                 
+                 <div className="bg-[#fffaf5] p-5 rounded-xl border border-amber-100">
+                    <div className="flex justify-between items-center mb-1.5">
+                       <label className="block text-[10px] font-bold text-amber-800 uppercase">Quantity (SqFt)</label>
+                    </div>
+                    <input 
+                      type="number" 
+                      step="0.01" 
+                      required 
+                      className="w-full bg-white border border-[#d6d3d1] p-4 rounded-xl text-xl font-black text-[#5c4033] focus:border-[#5c4033] outline-none" 
+                      value={saleFormData.soldSqFt} 
+                      onChange={e => setSaleFormData({...saleFormData, soldSqFt: e.target.value})} 
+                    />
+                 </div>
+                 
+                 <div className="flex gap-4 pt-4">
+                    <button type="button" onClick={() => setSaleModalOpen({open: false, block: null})} className="flex-1 bg-stone-100 py-4 rounded-xl font-bold uppercase text-xs text-stone-600">Cancel</button>
+                    <button type="submit" disabled={isSavingEdit} className="flex-[2] bg-[#5c4033] text-white py-4 rounded-xl font-bold uppercase text-xs shadow-xl active:scale-95 transition-all">
+                      {isSavingEdit ? 'Recording...' : 'Complete Sale'}
+                    </button>
+                 </div>
+              </form>
+           </div>
+        </div>
+      )}
+
+      {/* FINISH MODAL */}
       {finishModalOpen && (
         <div className="fixed inset-0 z-[600] bg-stone-900/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-in zoom-in-95">

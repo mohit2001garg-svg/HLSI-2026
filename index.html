@@ -10,7 +10,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
         
         :root {
             --sat: env(safe-area-inset-top);
@@ -19,28 +19,25 @@
             --sal: env(safe-area-inset-left);
         }
 
-        /* Standardize height for app-like behavior */
         html, body, #root {
             height: 100%;
             margin: 0;
             padding: 0;
-            overflow: hidden; /* Main container handles scrolling */
-            background-color: #faf9f6; /* Warm Ivory */
+            overflow: hidden;
+            background-color: #faf9f6;
         }
 
         body {
-            font-family: 'Inter', sans-serif; /* Single Font Family */
-            color: #2c241b; /* Warm Black */
+            font-family: 'Inter', sans-serif;
+            color: #2c241b;
             -webkit-font-smoothing: antialiased;
             overscroll-behavior-y: none;
         }
         
-        /* Enforce Single Font */
-        .font-serif, .font-mono, .mono { 
-            font-family: 'Inter', sans-serif !important; 
+        .font-mono, .mono { 
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important; 
         }
 
-        /* Smooth scrolling for touch devices */
         .custom-scrollbar {
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
@@ -56,11 +53,8 @@
             background: transparent;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #a8a29e; /* Stone-400 */
+            background: #a8a29e;
             border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-            background: #78716c;
         }
         
         button, a, select, input {
@@ -71,22 +65,15 @@
             -webkit-tap-highlight-color: transparent;
         }
 
-        @media screen and (max-height: 450px) {
-            header { display: none; }
-        }
-        
-        /* Utility for Card effects - Clean & Premium */
         .glass-panel {
             background: #ffffff;
-            border: 1px solid #d6d3d1; /* Stone-300 (Darker Border) */
+            border: 1px solid #d6d3d1;
             box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.05);
         }
         
-        /* Premium Input Styles */
-        input:focus, select:focus, textarea:focus {
+        input:focus, select:focus {
             outline: none;
-            border-color: #5c4033; /* Dark Brown */
-            ring: 1px solid #5c4033;
+            border-color: #5c4033;
         }
     </style>
 <script type="importmap">

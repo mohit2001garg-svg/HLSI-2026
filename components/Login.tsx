@@ -75,23 +75,20 @@ export const Login: React.FC<LoginProps> = ({ onLogin, branding }) => {
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#faf9f6]">
-        <div className="w-12 h-12 border-4 border-[#d6d3d1] border-t-[#5c4033] rounded-full animate-spin"></div>
+        <div className="w-12 h-12 border-4 border-stone-200 border-t-stone-500 rounded-full animate-spin"></div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-[#faf9f6] relative">
-      {/* Background Texture */}
-      <div className="absolute inset-0 opacity-40 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/marble.png')]"></div>
-
       <div className="w-full max-w-md relative z-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
         
         {/* Card */}
-        <div className="bg-white p-10 lg:p-12 shadow-xl border border-[#d6d3d1] rounded-2xl relative overflow-hidden">
+        <div className="bg-white p-12 shadow-[0_10px_40px_rgba(0,0,0,0.04)] border border-[#e5e7eb] rounded-[2rem] relative overflow-hidden">
           
-          <div className="flex flex-col items-center mb-10">
-            <div className="w-20 h-20 mb-6 p-2 rounded-xl bg-[#faf9f6] border border-[#d6d3d1]">
+          <div className="flex flex-col items-center mb-12">
+            <div className="w-20 h-20 mb-8 p-3 rounded-2xl bg-white border border-stone-100 shadow-sm flex items-center justify-center">
               <img 
                 src={branding.logoUrl || 'asset/logo.png'} 
                 alt="Logo" 
@@ -99,17 +96,17 @@ export const Login: React.FC<LoginProps> = ({ onLogin, branding }) => {
                 onError={handleImageError}
               />
             </div>
-            <h1 className="text-2xl font-semibold text-[#292524] text-center">
+            <h1 className="text-3xl font-bold text-[#292524] text-center tracking-tight">
               {branding.companyName}
             </h1>
-            <p className="mt-2 text-xs text-[#78716c] font-medium">
+            <p className="mt-2 text-sm text-[#78716c] font-medium opacity-60">
               {branding.shortName}
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-8">
-            <div className="space-y-2">
-              <label className="block text-xs text-[#78716c] font-medium">Select operator</label>
+          <form onSubmit={handleSubmit} className="space-y-10">
+            <div className="space-y-3">
+              <label className="block text-[11px] uppercase font-black tracking-widest text-[#a8a29e] ml-1">Select operator</label>
               <div className="relative">
                 <select
                   disabled={isVerifying}
@@ -119,7 +116,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, branding }) => {
                     setError(false);
                     setPin('');
                   }}
-                  className="w-full bg-[#faf9f6] border border-[#d6d3d1] text-[#292524] px-4 py-4 rounded-lg appearance-none focus:outline-none focus:border-[#5c4033] focus:ring-1 focus:ring-[#5c4033] font-medium transition-all"
+                  className="w-full bg-white border border-[#e5e7eb] text-[#292524] px-5 py-4 rounded-xl appearance-none focus:outline-none focus:border-stone-400 font-bold transition-all shadow-sm"
                 >
                   {staffList.length > 0 ? (
                     staffList.map(name => (
@@ -129,15 +126,15 @@ export const Login: React.FC<LoginProps> = ({ onLogin, branding }) => {
                     <option value="GUEST">GUEST</option>
                   )}
                 </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-[#78716c]">
+                <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-[#a8a29e]">
                   <i className="fas fa-chevron-down text-xs"></i>
                 </div>
               </div>
             </div>
 
             {!isGuest ? (
-              <div className="space-y-2 animate-in fade-in duration-300">
-                <label className="block text-xs text-[#78716c] font-medium">Security PIN</label>
+              <div className="space-y-3 animate-in fade-in duration-300">
+                <label className="block text-[11px] uppercase font-black tracking-widest text-[#a8a29e] ml-1">Security PIN</label>
                 <input
                   disabled={isVerifying}
                   type="password"
@@ -151,39 +148,39 @@ export const Login: React.FC<LoginProps> = ({ onLogin, branding }) => {
                     setPin(val);
                     if (error) setError(false);
                   }}
-                  className={`w-full bg-[#faf9f6] border text-center text-3xl focus:outline-none py-3 rounded-lg transition-all ${
+                  className={`w-full bg-white border text-center text-3xl focus:outline-none py-5 rounded-xl transition-all shadow-sm ${
                     error 
                     ? 'border-red-300 text-red-600 bg-red-50 animate-shake' 
-                    : 'border-[#d6d3d1] text-[#292524] focus:border-[#5c4033] focus:ring-1 focus:ring-[#5c4033]'
+                    : 'border-[#e5e7eb] text-[#292524] focus:border-stone-400'
                   }`}
                 />
               </div>
             ) : (
-              <div className="py-4 bg-[#faf9f6] rounded-lg border border-dashed border-[#d6d3d1] flex items-center justify-center gap-2">
-                 <i className="fas fa-eye text-[#78716c]"></i>
-                 <span className="text-xs text-[#78716c] font-medium">View only mode</span>
+              <div className="py-6 bg-[#faf9f6] rounded-xl border border-dashed border-[#d6d3d1] flex items-center justify-center gap-3">
+                 <i className="fas fa-eye text-[#a8a29e]"></i>
+                 <span className="text-sm text-[#78716c] font-bold uppercase tracking-widest">View only mode</span>
               </div>
             )}
 
             <button
               type="submit"
               disabled={(!isGuest && pin.length < 4) || isVerifying}
-              className={`w-full py-4 rounded-lg transition-all text-sm font-medium shadow-md active:scale-[0.98] ${
+              className={`w-full py-5 rounded-2xl transition-all text-xs font-black uppercase tracking-[0.2em] shadow-lg active:scale-[0.98] ${
                 isGuest 
-                ? 'bg-[#e7e5e4] text-[#57534e] hover:bg-[#d6d3d1]' 
-                : 'bg-[#5c4033] text-white hover:bg-[#4a3b32]'
+                ? 'bg-stone-100 text-[#57534e] hover:bg-stone-200' 
+                : 'bg-[#b4a59f] text-white hover:brightness-95'
               } disabled:opacity-50 disabled:cursor-not-allowed`}
             >
-              <span className="flex items-center justify-center gap-2">
+              <span className="flex items-center justify-center gap-3">
                 {isVerifying && <i className="fas fa-circle-notch fa-spin"></i>}
-                {isGuest ? 'Enter system' : (isVerifying ? 'Authenticating...' : 'Access terminal')}
+                {isGuest ? 'Enter system' : (isVerifying ? 'Verifying...' : 'Access terminal')}
               </span>
             </button>
           </form>
         </div>
 
-        <div className="mt-8 text-center">
-          <p className="text-xs text-[#a8a29e] font-medium">
+        <div className="mt-12 text-center">
+          <p className="text-[10px] text-[#a8a29e] font-black uppercase tracking-[0.3em]">
             &copy; {new Date().getFullYear()} Factory Management System
           </p>
         </div>

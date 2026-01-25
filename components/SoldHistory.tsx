@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { db, checkPermission } from '../services/db';
+import { db } from '../services/db';
 import { Block, BlockStatus, StaffMember } from '../types';
 import { exportToExcel } from '../services/utils';
 
@@ -23,7 +23,11 @@ export const SoldHistory: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
   const [selectedCompany, setSelectedCompany] = useState<string>('ALL');
   const [selectedMonth, setSelectedMonth] = useState<string>('ALL');
   const [selectedYear, setSelectedYear] = useState<string>('ALL');
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  
+  // Edit State
+  const [editingBlock, setEditingBlock] = useState<Block | null>(null);
+  const [editFormData, setEditFormData] = useState({ soldTo: '', billNo: '', soldAt: '', totalSqFt: '' });
+  const [isSaving, setIsSaving] = useState(false);
 
   const uniqueCompanies = useMemo(() => {
     return Array.from(new Set(blocks.filter(b => b.status === BlockStatus.SOLD).map(b => b.company))).sort();
@@ -50,10 +54,40 @@ export const SoldHistory: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
   }, [blocks, searchTerm, selectedCompany, selectedMonth, selectedYear]);
 
   const handleDelete = async (id: string, company: string) => {
-    if (isGuest || !checkPermission(activeStaff, company)) return;
-    if (!window.confirm("PERMANENTLY DELETE RECORD?")) return;
-    setDeletingId(id);
-    try { await db.deleteBlock(id); onRefresh(); } catch (err) { alert("Delete failed."); } finally { setDeletingId(null); }
+    if (isGuest) return;
+    if (!window.confirm("PERMANENTLY DELETE RECORD? This will remove the sale record.")) return;
+    try { await db.deleteBlock(id); onRefresh(); } catch (err) { alert("Delete failed."); }
+  };
+
+  const handleEditClick = (block: Block) => {
+    if (isGuest) return;
+    setEditingBlock(block);
+    setEditFormData({
+        soldTo: block.soldTo || '',
+        billNo: block.billNo || '',
+        soldAt: block.soldAt ? new Date(block.soldAt).toISOString().split('T')[0] : '',
+        totalSqFt: block.totalSqFt?.toString() || ''
+    });
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBlock) return;
+    setIsSaving(true);
+    try {
+        await db.updateBlock(editingBlock.id, {
+            soldTo: editFormData.soldTo.toUpperCase(),
+            billNo: editFormData.billNo.toUpperCase(),
+            soldAt: new Date(editFormData.soldAt).toISOString(),
+            totalSqFt: Number(editFormData.totalSqFt)
+        });
+        setEditingBlock(null);
+        onRefresh();
+    } catch(err: any) {
+        alert("Update failed: " + err.message);
+    } finally {
+        setIsSaving(false);
+    }
   };
 
   const handleExportExcel = () => {
@@ -153,7 +187,8 @@ export const SoldHistory: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
-              {soldBlocks.map(block => (
+              {soldBlocks.map(block => {
+                return (
                 <tr key={block.id} className="hover:bg-[#faf9f6] transition-colors bg-white">
                   <td className="px-8 py-5">
                     <div className="text-sm font-semibold">{new Date(block.soldAt!).toLocaleDateString()}</div>
@@ -169,12 +204,20 @@ export const SoldHistory: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
                     <div className="text-lg font-semibold text-[#5c4033]">{block.totalSqFt?.toFixed(2)} ft</div>
                   </td>
                   <td className="px-8 py-5 text-right">
-                    <button onClick={() => handleDelete(block.id, block.company)} className="text-[#a8a29e] hover:text-red-500 transition-colors">
-                      <i className="fas fa-trash-alt"></i>
-                    </button>
+                    {!isGuest && (
+                        <div className="flex justify-end gap-2">
+                            <button onClick={() => handleEditClick(block)} className="w-8 h-8 rounded flex items-center justify-center text-stone-400 hover:text-[#5c4033] hover:bg-stone-50 transition-colors">
+                                <i className="fas fa-pen text-xs"></i>
+                            </button>
+                            <button onClick={() => handleDelete(block.id, block.company)} className="w-8 h-8 rounded flex items-center justify-center text-stone-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                                <i className="fas fa-trash-alt text-xs"></i>
+                            </button>
+                        </div>
+                    )}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
               {soldBlocks.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-8 py-12 text-center text-[#a8a29e] italic">No sales found for the selected period.</td>
@@ -184,6 +227,42 @@ export const SoldHistory: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
           </table>
         </div>
       </div>
+
+      {/* EDIT MODAL */}
+      {editingBlock && (
+        <div className="fixed inset-0 z-[600] bg-stone-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl w-full max-w-lg p-8 shadow-2xl animate-in zoom-in-95">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-bold text-[#292524]">Correction: Sale Entry</h3>
+                    <button onClick={() => setEditingBlock(null)}><i className="fas fa-times text-[#a8a29e]"></i></button>
+                </div>
+                <form onSubmit={handleSaveEdit} className="space-y-5">
+                    <div>
+                        <label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Customer Name</label>
+                        <input className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold uppercase" value={editFormData.soldTo} onChange={e => setEditFormData({...editFormData, soldTo: e.target.value})} required />
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Bill Number</label>
+                        <input className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold uppercase" value={editFormData.billNo} onChange={e => setEditFormData({...editFormData, billNo: e.target.value})} required />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Sale Date</label>
+                            <input type="date" className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" value={editFormData.soldAt} onChange={e => setEditFormData({...editFormData, soldAt: e.target.value})} required />
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">SqFt Sold</label>
+                            <input type="number" step="0.01" className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" value={editFormData.totalSqFt} onChange={e => setEditFormData({...editFormData, totalSqFt: e.target.value})} required />
+                        </div>
+                    </div>
+                    <div className="pt-4 flex gap-3">
+                        <button type="button" onClick={() => setEditingBlock(null)} className="flex-1 border py-3 rounded-xl font-bold text-xs uppercase text-stone-500">Cancel</button>
+                        <button type="submit" disabled={isSaving} className="flex-[2] bg-[#5c4033] text-white py-3 rounded-xl font-bold text-xs uppercase shadow-md">{isSaving ? 'Updating...' : 'Save Correction'}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+      )}
     </div>
   );
 };

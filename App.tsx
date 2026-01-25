@@ -129,14 +129,14 @@ const App: React.FC = () => {
       {isSidebarOpen && <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-sm z-[60] lg:hidden animate-in fade-in" onClick={() => setIsSidebarOpen(false)} />}
 
       <aside className={`
-        fixed lg:sticky top-0 h-full w-[260px] z-[70] transition-transform duration-300 ease-in-out
+        fixed lg:sticky top-0 h-full w-[280px] z-[70] transition-transform duration-300 ease-in-out
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         bg-[#352b24] shadow-xl border-r border-[#2c241b] text-white
       `}>
         <div className="flex flex-col h-full overflow-y-auto custom-scrollbar relative">
           {/* Brand Header */}
-          <div className="pt-10 pb-8 px-6 flex flex-col items-center border-b border-[#4a3b32] bg-[#352b24]">
-            <div className="w-14 h-14 mb-4 relative">
+          <div className="pt-12 pb-10 px-8 flex flex-col items-center border-b border-[#4a3b32] bg-[#352b24]">
+            <div className="w-16 h-16 mb-5 relative">
               <img 
                 src={branding.logoUrl || 'asset/logo.png'} 
                 alt="Logo" 
@@ -148,58 +148,66 @@ const App: React.FC = () => {
               <h1 className="font-semibold text-lg text-[#f5f5f4] leading-tight">
                 {branding.companyName}
               </h1>
-              <p className="text-xs text-[#a8a29e] mt-1">{branding.shortName}</p>
+              <p className="text-xs text-[#a8a29e] mt-1.5 uppercase tracking-widest">{branding.shortName}</p>
             </div>
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 py-6 space-y-8">
+          <nav className="flex-1 py-8 space-y-10">
             <div>
-              <label className="px-8 block text-xs font-medium text-[#a8a29e] mb-2">Logistics</label>
-              {renderMenuItem('dashboard', 'fa-th-large', 'Overview')}
-              {renderMenuItem('purchase', 'fa-shopping-cart', 'Purchase')}
-              {renderMenuItem('block-arrival', 'fa-truck', 'Arrivals')}
-              {renderMenuItem('gantry-stock', 'fa-layer-group', 'Gantry')}
+              <label className="px-10 block text-[10px] font-bold text-[#a8a29e] mb-3 uppercase tracking-[0.2em] opacity-40">Logistics</label>
+              <div className="space-y-1">
+                {renderMenuItem('dashboard', 'fa-th-large', 'Overview')}
+                {renderMenuItem('purchase', 'fa-shopping-cart', 'Purchase')}
+                {renderMenuItem('block-arrival', 'fa-truck', 'Arrivals')}
+                {renderMenuItem('gantry-stock', 'fa-layer-group', 'Gantry')}
+              </div>
             </div>
             
             <div>
-              <label className="px-8 block text-xs font-medium text-[#a8a29e] mb-2">Production</label>
-              {renderMenuItem('machine-status', 'fa-microchip', 'Machines')}
-              {renderMenuItem('processing', 'fa-arrows-spin', 'Processing')}
-              {renderMenuItem('resin-line', 'fa-flask-vial', 'Resin Line')}
+              <label className="px-10 block text-[10px] font-bold text-[#a8a29e] mb-3 uppercase tracking-[0.2em] opacity-40">Production</label>
+              <div className="space-y-1">
+                {renderMenuItem('machine-status', 'fa-microchip', 'Machines')}
+                {renderMenuItem('processing', 'fa-arrows-spin', 'Processing')}
+                {renderMenuItem('resin-line', 'fa-flask-vial', 'Resin Line')}
+              </div>
             </div>
 
             <div>
-              <label className="px-8 block text-xs font-medium text-[#a8a29e] mb-2">Sales</label>
-              {renderMenuItem('ready-stock', 'fa-clipboard-check', 'Ready Stock')}
-              {renderMenuItem('stockyard', 'fa-warehouse', 'Stockyard')}
-              {renderMenuItem('sold-history', 'fa-file-invoice-dollar', 'Sales')}
+              <label className="px-10 block text-[10px] font-bold text-[#a8a29e] mb-3 uppercase tracking-[0.2em] opacity-40">Sales</label>
+              <div className="space-y-1">
+                {renderMenuItem('ready-stock', 'fa-clipboard-check', 'Ready Stock')}
+                {renderMenuItem('stockyard', 'fa-warehouse', 'Stockyard')}
+                {renderMenuItem('sold-history', 'fa-file-invoice-dollar', 'Sales Ledger')}
+              </div>
             </div>
 
             {!isGuest && (
               <div>
-                <label className="px-8 block text-xs font-medium text-[#a8a29e] mb-2">Admin</label>
-                {renderMenuItem('settings', 'fa-cog', 'Settings')}
+                <label className="px-10 block text-[10px] font-bold text-[#a8a29e] mb-3 uppercase tracking-[0.2em] opacity-40">Admin</label>
+                <div className="space-y-1">
+                  {renderMenuItem('settings', 'fa-cog', 'Settings')}
+                </div>
               </div>
             )}
           </nav>
 
           {/* User Footer */}
-          <div className="p-4 mt-auto border-t border-[#4a3b32] bg-[#2c241b]">
-            <div className="flex items-center justify-between mb-4 px-2">
-               <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center bg-[#4a3b32] text-[#d6d3d1]">
-                     <i className="fas fa-user text-xs"></i>
+          <div className="p-6 mt-auto border-t border-[#4a3b32] bg-[#2c241b]">
+            <div className="flex items-center justify-between mb-6 px-2">
+               <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-[#4a3b32] text-[#d6d3d1]">
+                     <i className="fas fa-user text-sm"></i>
                   </div>
                   <div>
-                     <div className="text-[10px] text-[#a8a29e] font-medium">Operator</div>
-                     <div className="text-sm font-medium text-white">{activeStaff}</div>
+                     <div className="text-[10px] text-[#a8a29e] font-bold uppercase tracking-wider">Operator</div>
+                     <div className="text-sm font-semibold text-white">{activeStaff}</div>
                   </div>
                </div>
-               {!isGuest && <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>}
+               {!isGuest && <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full ring-4 ring-emerald-500/20"></div>}
             </div>
-            <button onClick={handleLogout} className="w-full text-[#a8a29e] hover:text-white hover:bg-[#4a3b32] py-3 rounded-lg text-xs font-medium flex items-center justify-center gap-2 transition-colors border border-[#4a3b32]">
-              <i className="fas fa-power-off"></i> Sign out
+            <button onClick={handleLogout} className="w-full text-[#a8a29e] hover:text-white hover:bg-[#4a3b32] py-3.5 rounded-xl text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-3 transition-all border border-[#4a3b32]">
+              <i className="fas fa-power-off text-sm"></i> Sign out
             </button>
           </div>
         </div>
@@ -207,47 +215,49 @@ const App: React.FC = () => {
 
       <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden relative bg-[#faf9f6]">
         {/* Mobile Header */}
-        <div className="lg:hidden px-4 py-3 border-b border-[#d6d3d1] flex items-center justify-between bg-white z-50 sticky top-0 shadow-sm">
-          <button onClick={() => setIsSidebarOpen(true)} className="text-[#57534e] text-lg p-2"><i className="fas fa-bars"></i></button>
+        <div className="lg:hidden px-6 py-4 border-b border-[#d6d3d1] flex items-center justify-between bg-white z-50 sticky top-0 shadow-sm">
+          <button onClick={() => setIsSidebarOpen(true)} className="text-[#57534e] text-xl p-2"><i className="fas fa-bars"></i></button>
           <div className="flex flex-col items-center">
-             <span className="text-[#292524] font-semibold text-sm">{branding.companyName}</span>
+             <span className="text-[#292524] font-bold text-base tracking-tight">{branding.companyName}</span>
           </div>
-          <div className="w-8 flex items-center justify-center text-[#a8a29e]">
-             {isSyncing ? <i className="fas fa-sync fa-spin text-xs"></i> : <i className="fas fa-circle text-[8px] text-emerald-500"></i>}
+          <div className="w-10 flex items-center justify-center">
+             {isSyncing ? <i className="fas fa-sync fa-spin text-stone-400"></i> : <i className="fas fa-circle text-[8px] text-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></i>}
           </div>
         </div>
 
-        <main className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 pb-32 lg:pb-12 min-h-0 scroll-smooth">
+        <main className="flex-1 overflow-y-auto custom-scrollbar p-6 md:p-10 pb-32 lg:pb-16 min-h-0 scroll-smooth">
           
-          {/* Page Header - UPDATED TO MATCH SCREENSHOT */}
-          <header className="mb-10 flex flex-col lg:flex-row justify-between items-start gap-6">
+          {/* Page Header - Restored Premium Industrial Style */}
+          <header className="mb-12 flex flex-col lg:flex-row justify-between items-start gap-8">
             <div className="w-full lg:w-auto">
-              <p className="text-[#78716c] text-[10px] uppercase font-bold tracking-widest mb-1">
-                 Management System &bull; Hi Line Stone India Pvt Ltd
+              <p className="text-[#78716c] text-[11px] uppercase font-black tracking-[0.25em] mb-3 opacity-60">
+                 Factory Management &bull; Industrial Stock Control
               </p>
               
-              <div className="flex items-center gap-4 bg-white px-8 py-5 rounded-2xl border border-[#d6d3d1] shadow-sm w-full lg:min-w-[500px]">
+              <div className="flex items-center gap-6 bg-white px-10 py-7 rounded-[2rem] border border-[#d6d3d1] shadow-xl w-full lg:min-w-[550px]">
                 <div className="flex-1 text-center">
-                  <div className="text-[11px] text-[#a8a29e] font-bold mb-1 uppercase tracking-wide">Total Blocks</div>
-                  <div className="text-3xl font-black text-[#292524] leading-none tabular-nums">
+                  <div className="text-[11px] text-[#a8a29e] font-black mb-1.5 uppercase tracking-widest">Total Blocks</div>
+                  <div className="text-4xl font-black text-[#292524] leading-none tabular-nums">
                     {inventory.filter(b => b.status === BlockStatus.GANTRY).length}
                   </div>
                 </div>
-                <div className="w-px bg-[#d6d3d1] h-10"></div>
+                
+                <div className="w-px bg-[#d6d3d1] h-12"></div>
+                
                 <div className="flex-1 text-center">
-                  <div className="text-[11px] text-[#a8a29e] font-bold mb-1 uppercase tracking-wide">Total Volume</div>
-                  <div className="text-3xl font-black text-[#292524] leading-none tabular-nums">
-                    {inventory
+                  <div className="text-[11px] text-[#a8a29e] font-black mb-1.5 uppercase tracking-widest">Stock Volume</div>
+                  <div className="text-4xl font-black text-[#292524] leading-none tabular-nums">
+                    {Math.round(inventory
                       .filter(b => b.status === BlockStatus.IN_STOCKYARD)
                       .reduce((acc, b) => acc + (b.totalSqFt || 0), 0)
-                      .toLocaleString(undefined, { minimumFractionDigits: 3 })} <span className="text-sm font-bold text-[#78716c]">ft</span>
+                      ).toLocaleString()} <span className="text-sm font-black text-[#78716c] ml-1">SQFT</span>
                   </div>
                 </div>
               </div>
             </div>
           </header>
 
-          <section className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+          <section className="animate-in fade-in slide-in-from-bottom-3 duration-700">
             {currentView === 'dashboard' && <Dashboard blocks={inventory} onViewChange={setCurrentView} />}
             {currentView === 'purchase' && <Purchase blocks={inventory} onRefresh={refreshData} activeStaff={activeStaff!} isGuest={isGuest} />}
             {currentView === 'block-arrival' && <BlockArrival onSuccess={refreshData} activeStaff={activeStaff!} blocks={inventory} />}

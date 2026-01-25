@@ -31,6 +31,10 @@ export const GantryQueue: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
   const [queueModal, setQueueModal] = useState<{ open: boolean; blockId: string | null }>({ open: false, blockId: null });
   const [targetThickness, setTargetThickness] = useState<string>('18mm');
 
+  // Sales Modal State
+  const [saleModalOpen, setSaleModalOpen] = useState<{ open: boolean; block: Block | null }>({ open: false, block: null });
+  const [saleFormData, setSaleFormData] = useState({ soldTo: '', billNo: '', soldSqFt: '' });
+
   const rawGantryBlocks = useMemo(() => 
     blocks.filter(b => b.status === BlockStatus.GANTRY && !localHiddenIds.has(b.id)), 
     [blocks, localHiddenIds]
@@ -110,6 +114,39 @@ export const GantryQueue: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
     } finally {
       setIsImporting(false);
     }
+  };
+
+  const handleExecuteSale = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isGuest || !saleModalOpen.block) return;
+    setIsSavingEdit(true);
+    try {
+      const soldAt = new Date().toISOString();
+      const block = saleModalOpen.block;
+      
+      // Update the block to SOLD status
+      await db.updateBlock(block.id, {
+        status: BlockStatus.SOLD,
+        soldTo: saleFormData.soldTo.toUpperCase(),
+        billNo: saleFormData.billNo.toUpperCase(),
+        totalSqFt: Number(saleFormData.soldSqFt) || 0, // In gantry, we might manually enter this
+        soldAt: soldAt
+      });
+
+      setSaleModalOpen({ open: false, block: null });
+      setSaleFormData({ soldTo: '', billNo: '', soldSqFt: '' });
+      onRefresh();
+      alert(`Sale recorded successfully.`);
+    } catch (err: any) {
+      alert("Sale failed: " + err.message);
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const openSaleModal = (block: Block) => {
+    setSaleFormData({ soldTo: '', billNo: '', soldSqFt: '' }); // Reset
+    setSaleModalOpen({ open: true, block });
   };
 
   const getCellValue = (rowOrCell: any, colNumber?: number) => {
@@ -336,15 +373,39 @@ export const GantryQueue: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
         <div className="space-y-3">
           <h3 className="text-xs font-bold text-[#4a3b32] uppercase tracking-wider px-1">Production Queue</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {filtered.filter(b => b.isToBeCut).map(block => (
-               <div key={block.id} className="bg-orange-50 border border-orange-200 p-4 rounded-xl shadow-sm flex justify-between items-center">
-                  <div>
-                    <div className="font-bold text-sm text-[#292524]">#{block.jobNo}</div>
-                    <div className="text-[10px] font-bold text-orange-800 mt-0.5">{block.company} &bull; {block.thickness}</div>
-                  </div>
-                  <button onClick={() => db.updateBlock(block.id, { isToBeCut: false }).then(onRefresh)} className="w-8 h-8 flex items-center justify-center bg-white rounded-full text-orange-300 shadow-sm hover:text-red-500 transition-colors"><i className="fas fa-times text-xs"></i></button>
-               </div>
-            ))}
+            {filtered.filter(b => b.isToBeCut).map(block => {
+               const canEdit = checkPermission(activeStaff, block.company);
+               const isDisabled = isGuest || !canEdit;
+               return (
+                 <div key={block.id} className="bg-orange-50 border border-orange-200 p-4 rounded-xl shadow-sm space-y-3 transition-all">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <div className="font-bold text-sm text-[#292524]">#{block.jobNo}</div>
+                        <div className="text-[10px] font-bold text-orange-800 mt-0.5">{block.company} &bull; {block.thickness}</div>
+                      </div>
+                      <button onClick={() => db.updateBlock(block.id, { isToBeCut: false }).then(onRefresh)} className="w-8 h-8 flex items-center justify-center bg-white rounded-full text-orange-300 shadow-sm hover:text-red-500 transition-colors"><i className="fas fa-times text-xs"></i></button>
+                    </div>
+
+                    {/* Treatment Buttons in Queue Card - Fix for mobile request */}
+                    <div className="flex gap-2">
+                        <button 
+                          disabled={isDisabled}
+                          onClick={() => db.updateBlock(block.id, { preCuttingProcess: block.preCuttingProcess === 'TENNAX' ? 'None' : 'TENNAX' }).then(onRefresh)} 
+                          className={`flex-1 py-1.5 rounded text-[9px] font-black border transition-all ${block.preCuttingProcess === 'TENNAX' ? 'bg-amber-500 border-amber-600 text-white shadow-inner' : 'bg-white border-stone-200 text-stone-400 opacity-70'}`}
+                        >
+                          TNX
+                        </button>
+                        <button 
+                          disabled={isDisabled}
+                          onClick={() => db.updateBlock(block.id, { preCuttingProcess: block.preCuttingProcess === 'VACCUM' ? 'None' : 'VACCUM' }).then(onRefresh)} 
+                          className={`flex-1 py-1.5 rounded text-[9px] font-black border transition-all ${block.preCuttingProcess === 'VACCUM' ? 'bg-cyan-500 border-cyan-600 text-white shadow-inner' : 'bg-white border-stone-200 text-stone-400 opacity-70'}`}
+                        >
+                          VAC
+                        </button>
+                    </div>
+                 </div>
+               );
+            })}
           </div>
         </div>
       )}
@@ -365,7 +426,7 @@ export const GantryQueue: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
                         const n = new Set(selectedIds);
                         if(n.has(block.id)) n.delete(block.id); else n.add(block.id);
                         setSelectedIds(n);
-                    }} className={`w-5 h-5 rounded border flex items-center justify-center ${isSelected ? 'bg-[#5c4033] border-[#5c4033]' : 'border-stone-300'}`}>
+                    }} className={`w-6 h-6 rounded border flex items-center justify-center ${isSelected ? 'bg-[#5c4033] border-[#5c4033]' : 'border-stone-300'}`}>
                       {isSelected && <i className="fas fa-check text-white text-[10px]"></i>}
                     </div>
                   )}
@@ -380,34 +441,35 @@ export const GantryQueue: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
                 </div>
               </div>
 
-              {/* Treatment Buttons for Mobile - Always Visible */}
-              <div className="flex gap-2 my-3 pb-3 border-b border-[#f5f5f4]">
+              {/* Treatment Buttons for Mobile - Side by side */}
+              <div className="grid grid-cols-2 gap-3 my-3 pb-3 border-b border-[#f5f5f4]">
                   <button 
                     disabled={isDisabled}
                     onClick={() => db.updateBlock(block.id, { preCuttingProcess: block.preCuttingProcess === 'TENNAX' ? 'None' : 'TENNAX' }).then(onRefresh)} 
-                    className={`flex-1 py-2 rounded-lg text-[10px] font-bold border transition-all ${block.preCuttingProcess === 'TENNAX' ? 'bg-amber-100 border-amber-300 text-amber-900 shadow-inner' : 'bg-white border-stone-200 text-stone-400'} ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`py-2.5 rounded-lg text-[10px] font-bold border transition-all flex items-center justify-center gap-2 ${block.preCuttingProcess === 'TENNAX' ? 'bg-amber-100 border-amber-300 text-amber-900 shadow-inner' : 'bg-white border-stone-200 text-stone-400'} ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
-                    TENNAX
+                    <i className={`fas fa-check-circle ${block.preCuttingProcess === 'TENNAX' ? 'text-amber-600' : 'text-stone-200'}`}></i> TENNAX
                   </button>
                   <button 
                     disabled={isDisabled}
                     onClick={() => db.updateBlock(block.id, { preCuttingProcess: block.preCuttingProcess === 'VACCUM' ? 'None' : 'VACCUM' }).then(onRefresh)} 
-                    className={`flex-1 py-2 rounded-lg text-[10px] font-bold border transition-all ${block.preCuttingProcess === 'VACCUM' ? 'bg-cyan-100 border-cyan-300 text-cyan-900 shadow-inner' : 'bg-white border-stone-200 text-stone-400'} ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`py-2.5 rounded-lg text-[10px] font-bold border transition-all flex items-center justify-center gap-2 ${block.preCuttingProcess === 'VACCUM' ? 'bg-cyan-100 border-cyan-300 text-cyan-900 shadow-inner' : 'bg-white border-stone-200 text-stone-400'} ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
-                    VACUUM
+                    <i className={`fas fa-check-circle ${block.preCuttingProcess === 'VACCUM' ? 'text-cyan-600' : 'text-stone-200'}`}></i> VACUUM
                   </button>
               </div>
               
               <div className="mt-3 flex justify-between items-center">
-                 <div className="text-[10px] font-bold text-[#57534e] truncate max-w-[120px]">{block.material} {block.minesMarka ? `(${block.minesMarka})` : ''}</div>
+                 <div className="text-[10px] font-bold text-[#57534e] truncate max-w-[140px]">{block.material} {block.minesMarka ? `(${block.minesMarka})` : ''}</div>
                  
                  {!isGuest && canEdit && (
                    <div className="flex gap-2">
-                      <button onClick={() => { setEditingBlock(block); setEditFormData(block); }} className="w-8 h-8 rounded-lg bg-stone-50 border border-stone-200 text-stone-400 flex items-center justify-center"><i className="fas fa-pen text-[10px]"></i></button>
+                      <button onClick={() => openSaleModal(block)} className="w-9 h-9 rounded-lg bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center active:scale-95"><i className="fas fa-shopping-cart text-[10px]"></i></button>
+                      <button onClick={() => { setEditingBlock(block); setEditFormData(block); }} className="w-9 h-9 rounded-lg bg-stone-50 border border-stone-200 text-stone-400 flex items-center justify-center active:scale-95"><i className="fas fa-pen text-[10px]"></i></button>
                       <button onClick={() => { 
                         if(!block.isToBeCut) { setQueueModal({ open: true, blockId: block.id }); } 
                         else { db.updateBlock(block.id, { isToBeCut: false }).then(onRefresh); }
-                      }} className={`px-3 h-8 rounded-lg text-[10px] font-bold uppercase ${block.isToBeCut ? 'bg-orange-100 text-orange-700' : 'bg-[#5c4033] text-white'}`}>{block.isToBeCut ? 'Deque' : 'Queue'}</button>
+                      }} className={`px-4 h-9 rounded-lg text-[10px] font-bold uppercase active:scale-95 transition-transform ${block.isToBeCut ? 'bg-orange-100 text-orange-700' : 'bg-[#5c4033] text-white'}`}>{block.isToBeCut ? 'Deque' : 'Queue'}</button>
                    </div>
                  )}
               </div>
@@ -480,6 +542,7 @@ export const GantryQueue: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
                       <div className="flex justify-end gap-2">
                         {!isGuest && canEdit && (
                           <>
+                            <button onClick={() => openSaleModal(block)} className="text-amber-600 hover:text-amber-800 p-2 transition-colors"><i className="fas fa-shopping-cart"></i></button>
                             <button onClick={() => { setEditingBlock(block); setEditFormData(block); }} className="text-stone-400 p-2 hover:text-stone-700 transition-colors"><i className="fas fa-edit"></i></button>
                             <button onClick={() => { 
                               if(!block.isToBeCut) { setQueueModal({ open: true, blockId: block.id }); } 
@@ -509,7 +572,57 @@ export const GantryQueue: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
         </div>
       )}
 
-      {/* Edit Modal (same as desktop) */}
+      {/* Sale Modal */}
+      {saleModalOpen.open && (
+        <div className="fixed inset-0 z-[600] bg-stone-900/80 backdrop-blur-md flex items-center justify-center p-4">
+           <div className="bg-white rounded-2xl w-full max-w-lg p-8 shadow-2xl animate-in zoom-in-95">
+              <div className="flex justify-between items-start mb-6 border-b pb-4">
+                <div>
+                   <h3 className="text-2xl font-black text-[#5c4033] uppercase italic">Record Sale</h3>
+                   {saleModalOpen.block && (
+                     <div className="text-[10px] font-bold text-stone-500 mt-1 uppercase">Job #{saleModalOpen.block.jobNo} &bull; Weight: {saleModalOpen.block.weight?.toFixed(2)} T</div>
+                   )}
+                </div>
+                <button onClick={() => setSaleModalOpen({open: false, block: null})} className="text-stone-400 hover:text-stone-600"><i className="fas fa-times"></i></button>
+              </div>
+
+              <form onSubmit={handleExecuteSale} className="space-y-6">
+                 <div>
+                    <label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Customer Name</label>
+                    <input required className="w-full bg-white border border-[#d6d3d1] p-4 rounded-xl text-sm font-bold uppercase text-[#5c4033] focus:border-[#5c4033] outline-none" placeholder="NAME OF BUYER" value={saleFormData.soldTo} onChange={e => setSaleFormData({...saleFormData, soldTo: e.target.value})} />
+                 </div>
+                 <div>
+                    <label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Bill / Invoice No</label>
+                    <input required className="w-full bg-white border border-[#d6d3d1] p-4 rounded-xl text-sm font-bold uppercase text-[#5c4033] focus:border-[#5c4033] outline-none" placeholder="INV-2025-..." value={saleFormData.billNo} onChange={e => setSaleFormData({...saleFormData, billNo: e.target.value})} />
+                 </div>
+                 
+                 <div className="bg-[#fffaf5] p-5 rounded-xl border border-amber-100">
+                    <div className="flex justify-between items-center mb-1.5">
+                       <label className="block text-[10px] font-bold text-amber-800 uppercase">Estimated Quantity (SqFt)</label>
+                    </div>
+                    <input 
+                      type="number" 
+                      step="0.01" 
+                      required 
+                      className="w-full bg-white border border-[#d6d3d1] p-4 rounded-xl text-xl font-black text-[#5c4033] focus:border-[#5c4033] outline-none" 
+                      value={saleFormData.soldSqFt} 
+                      onChange={e => setSaleFormData({...saleFormData, soldSqFt: e.target.value})} 
+                      placeholder="0.00"
+                    />
+                 </div>
+                 
+                 <div className="flex gap-4 pt-4">
+                    <button type="button" onClick={() => setSaleModalOpen({open: false, block: null})} className="flex-1 bg-stone-100 py-4 rounded-xl font-bold uppercase text-xs text-stone-600">Cancel</button>
+                    <button type="submit" disabled={isSavingEdit} className="flex-[2] bg-[#5c4033] text-white py-4 rounded-xl font-bold uppercase text-xs shadow-xl active:scale-95 transition-all">
+                      {isSavingEdit ? 'Recording...' : 'Complete Sale'}
+                    </button>
+                 </div>
+              </form>
+           </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
       {editingBlock && (
         <div className="fixed inset-0 z-[600] bg-stone-900/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl animate-in zoom-in-95">
@@ -522,7 +635,10 @@ export const GantryQueue: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
                    <label className="block text-[10px] font-bold text-[#78716c] mb-1 uppercase">Job Number</label>
                    <input className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" value={editFormData.jobNo || ''} onChange={e => setEditFormData({...editFormData, jobNo: e.target.value})} />
                 </div>
-                {/* ... other fields ... */}
+                <div className="col-span-2">
+                   <label className="block text-[10px] font-bold text-[#78716c] mb-1 uppercase">Company / Party</label>
+                   <input className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold uppercase" value={editFormData.company || ''} onChange={e => setEditFormData({...editFormData, company: e.target.value})} />
+                </div>
                 <div>
                    <label className="block text-[10px] font-bold text-[#78716c] mb-1 uppercase">Material</label>
                    <input className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" value={editFormData.material || ''} onChange={e => setEditFormData({...editFormData, material: e.target.value})} />

@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef } from 'react';
-import { db, checkPermission } from '../services/db';
+import { db } from '../services/db';
 import { Block, BlockStatus, StockyardLocation, StaffMember } from '../types';
 import { exportToExcel } from '../services/utils';
 import ExcelJS from 'exceljs';
@@ -30,6 +30,10 @@ export const Stockyard: React.FC<Props> = ({ blocks, onRefresh, activeStaff, isG
   const [editingBlock, setEditingBlock] = useState<Block | null>(null);
   const [editFormData, setEditFormData] = useState<Partial<Block>>({});
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  
+  // Add Manual Block State
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [newBlockData, setNewBlockData] = useState<Partial<Block>>({});
   
   const [saleModalOpen, setSaleModalOpen] = useState<{ open: boolean; block: Block | null }>({ open: false, block: null });
   const [saleFormData, setSaleFormData] = useState({ soldTo: '', billNo: '', soldSqFt: '' });
@@ -89,18 +93,17 @@ export const Stockyard: React.FC<Props> = ({ blocks, onRefresh, activeStaff, isG
     };
   }, [yardBlocks]);
 
-  const selectableBlocks = useMemo(() => yardBlocks.filter(b => checkPermission(activeStaff, b.company)), [yardBlocks, activeStaff]);
-  const isAllSelected = selectableBlocks.length > 0 && selectableBlocks.every(b => selectedIds.has(b.id));
+  const isAllSelected = yardBlocks.length > 0 && yardBlocks.every(b => selectedIds.has(b.id));
 
   const handleSelectAll = () => {
     if (isGuest) return;
     if (isAllSelected) {
       const newSelected = new Set(selectedIds);
-      selectableBlocks.forEach(b => newSelected.delete(b.id));
+      yardBlocks.forEach(b => newSelected.delete(b.id));
       setSelectedIds(newSelected);
     } else {
       const newSelected = new Set(selectedIds);
-      selectableBlocks.forEach(b => newSelected.add(b.id));
+      yardBlocks.forEach(b => newSelected.add(b.id));
       setSelectedIds(newSelected);
     }
   };
@@ -185,28 +188,20 @@ export const Stockyard: React.FC<Props> = ({ blocks, onRefresh, activeStaff, isG
         else if (val.includes('msp') || val.includes('price')) colMap['msp'] = colNumber;
         else if (val.includes('loc')) colMap['location'] = colNumber;
         
-        // Strict Dimension Matching
         else if (val === 'l' || val === 'len' || val === 'length') colMap['slabLength'] = colNumber;
         else if (val === 'w' || val === 'wid' || val === 'width') colMap['slabWidth'] = colNumber;
-        else if (val === 'h' || val === 'height') colMap['slabWidth'] = colNumber; // Map H to Width for Slabs
+        else if (val === 'h' || val === 'height') colMap['slabWidth'] = colNumber;
         
-        // Fallback for Merged/Complex Headers
         else if (val.includes('dim') || val.includes('size')) colMap['_dimStart'] = colNumber;
       });
 
-      // --- INTELLIGENT MAPPING RECOVERY ---
-      
-      // 1. If no explicit Length found, but 'Dimension' column exists, use it as Length
       if (!colMap['slabLength'] && colMap['_dimStart']) {
           colMap['slabLength'] = colMap['_dimStart'];
       }
 
-      // 2. If Length is found (explicitly or via fallback), but Width is missing:
-      // Check the VERY NEXT column. If it's not already mapped to something else, assume it's Width.
       if (colMap['slabLength'] && !colMap['slabWidth']) {
           const nextCol = colMap['slabLength'] + 1;
           const isTaken = Object.values(colMap).includes(nextCol);
-          // Also check if next col header looks like a dimension unit or empty
           if (!isTaken) {
               colMap['slabWidth'] = nextCol;
           }
@@ -226,11 +221,8 @@ export const Stockyard: React.FC<Props> = ({ blocks, onRefresh, activeStaff, isG
         let sLength = getNumericValue(row, colMap['slabLength']);
         let sWidth = getNumericValue(row, colMap['slabWidth']);
 
-        // 3. Combined String Fallback (e.g. "106x64" in one cell)
-        // If we only have one value (or Length column had text), try parsing it
         if ((!sLength || !sWidth) && colMap['slabLength']) {
              const rawVal = getCellValue(row, colMap['slabLength']);
-             // Matches "106 x 64", "106*64", "106 64"
              const match = rawVal.match(/([0-9]+(?:\.[0-9]+)?)\s*[x*X\s]\s*([0-9]+(?:\.[0-9]+)?)/);
              if (match) {
                  sLength = parseFloat(match[1]);
@@ -299,6 +291,60 @@ export const Stockyard: React.FC<Props> = ({ blocks, onRefresh, activeStaff, isG
       alert("Update failed: " + err.message);
     } finally {
       setIsSavingEdit(false);
+    }
+  };
+
+  const handleAddManualBlock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isGuest) return;
+    setIsSavingEdit(true);
+    try {
+        if (!newBlockData.jobNo || !newBlockData.company) {
+            alert("Job No and Company are required.");
+            setIsSavingEdit(false);
+            return;
+        }
+        
+        // Basic duplicate check
+        if (blocks.some(b => b.jobNo === newBlockData.jobNo?.toUpperCase())) {
+             alert("Job Number already exists.");
+             setIsSavingEdit(false);
+             return;
+        }
+
+        const block: Block = {
+            id: crypto.randomUUID(),
+            jobNo: newBlockData.jobNo.toUpperCase(),
+            company: newBlockData.company.toUpperCase(),
+            material: newBlockData.material?.toUpperCase() || 'UNKNOWN',
+            minesMarka: newBlockData.minesMarka?.toUpperCase() || '',
+            length: 0, width: 0, height: 0, 
+            weight: Number(newBlockData.weight) || 0,
+            arrivalDate: new Date().toISOString().split('T')[0],
+            status: BlockStatus.IN_STOCKYARD,
+            isPriority: false,
+            enteredBy: activeStaff,
+            preCuttingProcess: 'None',
+            powerCuts: [],
+            // Stockyard specific
+            slabLength: Number(newBlockData.slabLength) || 0,
+            slabWidth: Number(newBlockData.slabWidth) || 0,
+            slabCount: Number(newBlockData.slabCount) || 0,
+            totalSqFt: Number(newBlockData.totalSqFt) || 0,
+            msp: newBlockData.msp?.toUpperCase() || '',
+            stockyardLocation: (newBlockData.stockyardLocation as StockyardLocation) || 'Field',
+            transferredToYardAt: new Date().toISOString()
+        };
+
+        await db.addBlock(block);
+        setAddModalOpen(false);
+        setNewBlockData({});
+        onRefresh();
+        alert("Old block added manually.");
+    } catch (err: any) {
+        alert("Error adding block: " + err.message);
+    } finally {
+        setIsSavingEdit(false);
     }
   };
 
@@ -432,10 +478,16 @@ export const Stockyard: React.FC<Props> = ({ blocks, onRefresh, activeStaff, isG
           </select>
         </div>
 
-        <div className="flex gap-2 lg:col-span-2 xl:col-span-1">
+        <div className="flex gap-2 lg:col-span-2 xl:col-span-2">
           {!isGuest && (
             <>
               <input type="file" ref={fileInputRef} className="hidden" accept=".xlsx" onChange={handleImportExcel} />
+              <button 
+                onClick={() => setAddModalOpen(true)}
+                className="flex-1 bg-[#5c4033] hover:bg-[#4a3b32] text-white px-4 py-3 rounded-lg flex items-center justify-center gap-2 font-bold text-xs shadow-sm transition-all"
+              >
+                <i className="fas fa-plus-circle"></i> Add Old
+              </button>
               <button 
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isImporting}
@@ -496,7 +548,6 @@ export const Stockyard: React.FC<Props> = ({ blocks, onRefresh, activeStaff, isG
         <div className="lg:hidden space-y-4">
           {yardBlocks.map(block => {
             const isSelected = selectedIds.has(block.id);
-            const canEdit = checkPermission(activeStaff, block.company);
             const recovery = (block.totalSqFt && block.weight) ? (block.totalSqFt / block.weight).toFixed(2) : '0.00';
             
             return (
@@ -538,19 +589,19 @@ export const Stockyard: React.FC<Props> = ({ blocks, onRefresh, activeStaff, isG
                       {block.msp || 'MSP'}
                    </button>
                    <div className="flex gap-2">
-                      {!isGuest && canEdit && (
+                      {!isGuest && (
                         <>
-                           <button onClick={() => { setEditingBlock(block); setEditFormData(block); }} className="w-10 h-10 flex items-center justify-center bg-white border border-[#d6d3d1] text-stone-500 rounded-lg hover:bg-stone-50"><i className="fas fa-pen text-sm"></i></button>
+                           <button onClick={() => { setEditingBlock(block); setEditFormData(block); }} className="w-10 h-10 flex items-center justify-center bg-white border border-[#d6d3d1] text-stone-500 rounded-lg hover:bg-stone-50 active:scale-95"><i className="fas fa-pen text-sm"></i></button>
                            <button 
                              onClick={() => { 
                                setSaleFormData({ soldTo: '', billNo: '', soldSqFt: (block.totalSqFt || 0).toFixed(2) });
                                setSaleModalOpen({ open: true, block: block }); 
                              }}
-                             className="w-10 h-10 flex items-center justify-center bg-amber-100 border-2 border-amber-400 text-amber-700 rounded-lg"
+                             className="w-10 h-10 flex items-center justify-center bg-amber-100 border-2 border-amber-400 text-amber-700 rounded-lg active:scale-95"
                            >
                              <i className="fas fa-shopping-cart text-sm"></i>
                            </button>
-                           <button onClick={() => handleDelete(block.id, block.jobNo)} className="w-10 h-10 flex items-center justify-center bg-white border border-red-100 text-red-400 rounded-lg hover:bg-red-50"><i className="fas fa-trash-alt text-sm"></i></button>
+                           <button onClick={() => handleDelete(block.id, block.jobNo)} className="w-10 h-10 flex items-center justify-center bg-white border border-red-100 text-red-400 rounded-lg hover:bg-red-50 active:scale-95"><i className="fas fa-trash-alt text-sm"></i></button>
                         </>
                       )}
                    </div>
@@ -581,12 +632,11 @@ export const Stockyard: React.FC<Props> = ({ blocks, onRefresh, activeStaff, isG
               <tbody className="divide-y divide-stone-100">
                 {yardBlocks.map(block => {
                   const isSelected = selectedIds.has(block.id);
-                  const canEdit = checkPermission(activeStaff, block.company);
                   const recovery = (block.totalSqFt && block.weight) ? (block.totalSqFt / block.weight).toFixed(2) : '0.00';
                   
                   return (
                     <tr key={block.id} className={`hover:bg-[#faf9f6] transition-colors ${isSelected ? 'bg-amber-50' : 'bg-white'}`}>
-                      <td className="px-6 py-4 text-center">{!isGuest && canEdit && (<input type="checkbox" checked={isSelected} onChange={() => handleToggleId(block.id)} className="w-4 h-4 rounded border-stone-300 text-[#5c4033] cursor-pointer" />)}</td>
+                      <td className="px-6 py-4 text-center">{!isGuest && (<input type="checkbox" checked={isSelected} onChange={() => handleToggleId(block.id)} className="w-4 h-4 rounded border-stone-300 text-[#5c4033] cursor-pointer" />)}</td>
                       <td className="px-6 py-4"><div className="font-bold text-sm">#{block.jobNo}</div><div className="text-[10px] font-medium text-[#78716c] uppercase">{block.company}</div></td>
                       <td className="px-6 py-4 text-xs font-bold text-[#57534e]"><div>{block.material}</div><div className="text-[9px] text-[#a8a29e]">{block.minesMarka || '-'}</div></td>
                       <td className="px-6 py-4 text-xs font-mono">{Math.round(block.slabLength || 0)} x {Math.round(block.slabWidth || 0)}</td>
@@ -600,17 +650,18 @@ export const Stockyard: React.FC<Props> = ({ blocks, onRefresh, activeStaff, isG
                       </td>
                       <td className="px-6 py-4"><span className="px-2 py-1 bg-[#f5f5f4] border border-stone-200 rounded text-[9px] font-bold text-stone-500 uppercase">{block.stockyardLocation}</span></td>
                       <td className="px-6 py-4 text-right">
-                        {!isGuest && canEdit && (
+                        {!isGuest && (
                           <div className="flex justify-end gap-1">
                             <button 
                                onClick={() => { 
                                  setSaleFormData({ soldTo: '', billNo: '', soldSqFt: (block.totalSqFt || 0).toFixed(2) });
                                  setSaleModalOpen({ open: true, block: block }); 
                                }}
-                               className="text-amber-700 bg-amber-100 border-2 border-amber-400 hover:bg-amber-200 p-2 rounded-lg"
+                               className="text-amber-700 bg-amber-100 border-2 border-amber-400 hover:bg-amber-200 p-2 rounded-lg active:scale-95 transition-transform"
+                               title="Sell Block"
                             ><i className="fas fa-shopping-cart"></i></button>
-                            <button onClick={() => { setEditingBlock(block); setEditFormData(block); }} className="text-stone-400 hover:text-[#5c4033] p-2"><i className="fas fa-edit"></i></button>
-                            <button onClick={() => handleDelete(block.id, block.jobNo)} className="text-stone-300 hover:text-red-500 p-2"><i className="fas fa-trash-alt"></i></button>
+                            <button onClick={() => { setEditingBlock(block); setEditFormData(block); }} className="text-stone-400 hover:text-[#5c4033] p-2 hover:bg-stone-50 rounded-lg active:scale-95 transition-all"><i className="fas fa-edit"></i></button>
+                            <button onClick={() => handleDelete(block.id, block.jobNo)} className="text-stone-300 hover:text-red-500 p-2 hover:bg-red-50 rounded-lg active:scale-95 transition-all"><i className="fas fa-trash-alt"></i></button>
                           </div>
                         )}
                       </td>
@@ -623,6 +674,7 @@ export const Stockyard: React.FC<Props> = ({ blocks, onRefresh, activeStaff, isG
         </div>
       </div>
 
+      {/* SALE MODAL */}
       {saleModalOpen.open && (
         <div className="fixed inset-0 z-[600] bg-stone-900/80 backdrop-blur-md flex items-center justify-center p-4">
            <div className="bg-white rounded-2xl w-full max-w-lg p-8 shadow-2xl animate-in zoom-in-95">
@@ -679,9 +731,10 @@ export const Stockyard: React.FC<Props> = ({ blocks, onRefresh, activeStaff, isG
         </div>
       )}
 
+      {/* EDIT MODAL */}
       {editingBlock && (
         <div className="fixed inset-0 z-[600] bg-stone-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-2xl p-8 shadow-2xl">
+          <div className="bg-white rounded-2xl w-full max-w-2xl p-8 shadow-2xl animate-in zoom-in-95">
              <div className="flex justify-between items-center mb-6 border-b pb-4"><h3 className="text-xl font-bold text-[#292524]">Update Yard Registry</h3><button onClick={() => setEditingBlock(null)}><i className="fas fa-times text-[#a8a29e]"></i></button></div>
              <form onSubmit={handleSaveEdit} className="grid grid-cols-2 gap-6">
                 <div className="col-span-2"><label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Job No</label><input className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" value={editFormData.jobNo || ''} onChange={e => setEditFormData({...editFormData, jobNo: e.target.value})} /></div>
@@ -693,6 +746,36 @@ export const Stockyard: React.FC<Props> = ({ blocks, onRefresh, activeStaff, isG
                 <div><label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Slab Count</label><input type="number" className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" value={editFormData.slabCount || 0} onChange={e => setEditFormData({...editFormData, slabCount: Number(e.target.value)})} /></div>
                 <div><label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Total SqFt</label><input type="number" step="0.01" className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" value={editFormData.totalSqFt || 0} onChange={e => setEditFormData({...editFormData, totalSqFt: Number(e.target.value)})} /></div>
                 <div className="col-span-2 pt-4 flex gap-3"><button type="button" onClick={() => setEditingBlock(null)} className="flex-1 border py-4 rounded-xl font-bold text-xs uppercase">Cancel</button><button type="submit" disabled={isSavingEdit} className="flex-[2] bg-[#5c4033] text-white py-4 rounded-xl font-bold text-xs uppercase shadow-xl">{isSavingEdit ? 'Syncing...' : 'Update Records'}</button></div>
+             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ADD OLD BLOCK MODAL */}
+      {addModalOpen && (
+        <div className="fixed inset-0 z-[600] bg-stone-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-2xl p-8 shadow-2xl animate-in zoom-in-95">
+             <div className="flex justify-between items-center mb-6 border-b pb-4"><h3 className="text-xl font-bold text-[#292524]">Add Manual Stock</h3><button onClick={() => setAddModalOpen(false)}><i className="fas fa-times text-[#a8a29e]"></i></button></div>
+             <form onSubmit={handleAddManualBlock} className="grid grid-cols-2 gap-6">
+                <div className="col-span-2"><label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Job No</label><input className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" placeholder="JOB-001" value={newBlockData.jobNo || ''} onChange={e => setNewBlockData({...newBlockData, jobNo: e.target.value})} required /></div>
+                <div><label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Company</label><input className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" placeholder="COMPANY NAME" value={newBlockData.company || ''} onChange={e => setNewBlockData({...newBlockData, company: e.target.value})} required /></div>
+                <div><label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Material</label><input className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" placeholder="MATERIAL" value={newBlockData.material || ''} onChange={e => setNewBlockData({...newBlockData, material: e.target.value})} /></div>
+                <div><label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Marka</label><input className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" value={newBlockData.minesMarka || ''} onChange={e => setNewBlockData({...newBlockData, minesMarka: e.target.value})} /></div>
+                <div><label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Weight (T)</label><input type="number" step="0.01" className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" value={newBlockData.weight || ''} onChange={e => setNewBlockData({...newBlockData, weight: Number(e.target.value)})} /></div>
+                <div><label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">MSP (Price)</label><input className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-black text-amber-800" value={newBlockData.msp || ''} onChange={e => setNewBlockData({...newBlockData, msp: e.target.value})} /></div>
+                <div><label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Slab Size</label><div className="flex gap-2"><input type="number" step="0.01" className="w-1/2 bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm" placeholder="L" value={newBlockData.slabLength || ''} onChange={e => setNewBlockData({...newBlockData, slabLength: Number(e.target.value)})} /><input type="number" step="0.01" className="w-1/2 bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm" placeholder="W" value={newBlockData.slabWidth || ''} onChange={e => setNewBlockData({...newBlockData, slabWidth: Number(e.target.value)})} /></div></div>
+                <div><label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Slab Count</label><input type="number" className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" value={newBlockData.slabCount || ''} onChange={e => setNewBlockData({...newBlockData, slabCount: Number(e.target.value)})} /></div>
+                <div><label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Total SqFt</label><input type="number" step="0.01" className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" value={newBlockData.totalSqFt || ''} onChange={e => setNewBlockData({...newBlockData, totalSqFt: Number(e.target.value)})} /></div>
+                <div>
+                    <label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Location</label>
+                    <select className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" value={newBlockData.stockyardLocation || 'Field'} onChange={e => setNewBlockData({...newBlockData, stockyardLocation: e.target.value as StockyardLocation})}>
+                        <option value="Field">Field</option>
+                        <option value="Showroom">Showroom</option>
+                        <option value="Service Lane">Service Lane</option>
+                        <option value="RP Yard">RP Yard</option>
+                    </select>
+                </div>
+                <div className="col-span-2 pt-4 flex gap-3"><button type="button" onClick={() => setAddModalOpen(false)} className="flex-1 border py-4 rounded-xl font-bold text-xs uppercase">Cancel</button><button type="submit" disabled={isSavingEdit} className="flex-[2] bg-[#5c4033] text-white py-4 rounded-xl font-bold text-xs uppercase shadow-xl">{isSavingEdit ? 'Adding...' : 'Add Block'}</button></div>
              </form>
           </div>
         </div>
