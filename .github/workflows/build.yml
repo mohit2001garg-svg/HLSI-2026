@@ -8,30 +8,75 @@ on:
     branches: [ "main", "master" ]
 
 jobs:
-  build:
+  build-android:
+    name: Build Android APK
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout source code
-      uses: actions/checkout@v4
+      - name: Checkout source code
+        uses: actions/checkout@v4
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        # Removed cache: 'npm' because package-lock.json is not yet committed
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
-    - name: Install dependencies
-      run: npm install
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
 
-    - name: Build Project
-      run: npm run build
-      env:
-        # ensure you add this secret in GitHub Repo Settings
-        API_KEY: ${{ secrets.API_KEY }} 
+      - name: Install dependencies
+        run: npm install
 
-    - name: Upload Build Artifact (www folder)
-      uses: actions/upload-artifact@v4
-      with:
-        name: build-output
-        path: www/
+      - name: Build Web Assets
+        run: npm run build
+        env:
+          API_KEY: ${{ secrets.API_KEY }}
+
+      - name: Initialize Capacitor & Resources
+        # We manually run parts of build:apk to ensure permissions handling
+        run: |
+          npx cap add android || echo "Android platform already exists"
+          npx cap sync android
+          npm run resources
+          npx cap copy android
+
+      - name: Build Debug APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+
+  build-windows:
+    name: Build Windows EXE
+    runs-on: windows-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build EXE
+        # This script runs 'npm run build' followed by 'electron-builder'
+        run: npm run build:exe
+        env:
+          API_KEY: ${{ secrets.API_KEY }}
+
+      - name: Upload EXE Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: dist/*.exe
