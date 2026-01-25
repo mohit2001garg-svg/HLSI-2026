@@ -47,7 +47,9 @@ export const Purchase: React.FC<Props> = ({ blocks, onRefresh, activeStaff, isGu
 
   // --- DATA FILTERING & GROUPING ---
   const purchaseBlocks = useMemo(() => 
-    blocks.filter(b => b.status === BlockStatus.PURCHASED),
+    blocks
+      .filter(b => b.status === BlockStatus.PURCHASED)
+      .sort((a, b) => a.jobNo.localeCompare(b.jobNo, undefined, { numeric: true })),
     [blocks]
   );
 
