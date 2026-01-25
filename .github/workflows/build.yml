@@ -1,0 +1,37 @@
+
+name: Build Application
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout source code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Build Project
+      run: npm run build
+      env:
+        # ensure you add this secret in GitHub Repo Settings
+        API_KEY: ${{ secrets.API_KEY }} 
+
+    - name: Upload Build Artifact (www folder)
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-output
+        path: www/
