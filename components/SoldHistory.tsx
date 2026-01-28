@@ -27,6 +27,7 @@ export const SoldHistory: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
   // Edit State
   const [editingBlock, setEditingBlock] = useState<Block | null>(null);
   const [editFormData, setEditFormData] = useState({ soldTo: '', billNo: '', soldAt: '', totalSqFt: '', weight: '' });
+  const [isAreaSale, setIsAreaSale] = useState(false); // Checkbox state
   const [isSaving, setIsSaving] = useState(false);
 
   const uniqueCompanies = useMemo(() => {
@@ -61,10 +62,12 @@ export const SoldHistory: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
 
   const handleEditClick = (block: Block) => {
     if (isGuest) return;
+    const bill = block.billNo || '';
     setEditingBlock(block);
+    setIsAreaSale(bill.toUpperCase().startsWith('S'));
     setEditFormData({
         soldTo: block.soldTo || '',
-        billNo: block.billNo || '',
+        billNo: bill,
         soldAt: block.soldAt ? new Date(block.soldAt).toISOString().split('T')[0] : '',
         totalSqFt: block.totalSqFt?.toString() || '',
         weight: block.weight?.toString() || ''
@@ -76,9 +79,21 @@ export const SoldHistory: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
     if (!editingBlock) return;
     setIsSaving(true);
     try {
+        let finalBillNo = editFormData.billNo.toUpperCase();
+        if (isAreaSale) {
+            if (!finalBillNo.startsWith('S')) {
+                // If it starts with a dash like "-123", just add S. If "123", add "S-".
+                if (finalBillNo.startsWith('-')) finalBillNo = 'S' + finalBillNo;
+                else finalBillNo = 'S-' + finalBillNo;
+            }
+        } else {
+            // If user unchecks, remove the S- or S prefix if present
+            finalBillNo = finalBillNo.replace(/^S-?/, '');
+        }
+
         await db.updateBlock(editingBlock.id, {
             soldTo: editFormData.soldTo.toUpperCase(),
-            billNo: editFormData.billNo.toUpperCase(),
+            billNo: finalBillNo,
             soldAt: new Date(editFormData.soldAt).toISOString(),
             totalSqFt: Number(editFormData.totalSqFt),
             weight: Number(editFormData.weight)
@@ -137,7 +152,12 @@ export const SoldHistory: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
   };
 
   // Summaries
-  const totalAreaSold = soldBlocks.reduce((a, b) => a + (b.totalSqFt || 0), 0);
+  // UPDATE: Only show the area sold quantity if the bill no has 'S' IN ITS PREFIX
+  const totalAreaSold = soldBlocks.reduce((a, b) => {
+    const isAreaBill = b.billNo?.toUpperCase().startsWith('S');
+    return isAreaBill ? a + (b.totalSqFt || 0) : a;
+  }, 0);
+  
   const totalWeightSold = soldBlocks.filter(b => !b.totalSqFt).reduce((a, b) => a + (b.weight || 0), 0);
 
   return (
@@ -179,7 +199,7 @@ export const SoldHistory: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
           <div className="text-[10px] text-[#a8a29e] font-medium mb-2 uppercase tracking-widest">Total Sales</div>
           <div className="flex gap-8">
              <div>
-                <div className="text-xs text-[#78716c]">Area Sold</div>
+                <div className="text-xs text-[#78716c]">Area Sold (Bill 'S-...')</div>
                 <div className="text-3xl font-semibold text-[#5c4033]">
                    {totalAreaSold.toFixed(2)} <span className="text-sm font-bold text-[#a8a29e]">ft</span>
                 </div>
@@ -271,6 +291,21 @@ export const SoldHistory: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
                         <label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Bill Number</label>
                         <input className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold uppercase" value={editFormData.billNo} onChange={e => setEditFormData({...editFormData, billNo: e.target.value})} required />
                     </div>
+                    
+                    {/* Ask Option Checkbox for 'S' prefix */}
+                    <div className="flex items-center gap-3 bg-stone-50 p-3 rounded-lg border border-stone-200">
+                        <input 
+                            type="checkbox" 
+                            id="areaSaleCheck" 
+                            className="w-5 h-5 text-[#5c4033] rounded cursor-pointer"
+                            checked={isAreaSale}
+                            onChange={(e) => setIsAreaSale(e.target.checked)}
+                        />
+                        <label htmlFor="areaSaleCheck" className="text-xs font-bold text-[#5c4033] uppercase cursor-pointer select-none">
+                            Count as Area Sale (Bill No starts with 'S')
+                        </label>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Sale Date</label>

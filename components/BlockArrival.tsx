@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../services/db';
 import { BlockStatus, Block, StaffMember } from '../types';
@@ -168,6 +169,11 @@ export const BlockArrival: React.FC<Props> = ({ onSuccess, activeStaff, blocks }
   const commonInputStyle = "w-full bg-white border border-[#d6d3d1] text-[#292524] rounded-lg px-4 py-3 focus:outline-none focus:border-[#5c4033] font-medium text-sm transition-all placeholder:text-[#d6d3d1]";
   const labelStyle = "block text-[10px] font-bold text-[#a8a29e] mb-1.5 ml-1 uppercase tracking-wider";
 
+  // Filter blocks for Recent Log: Show only GANTRY status (Factory Arrived), exclude Purchased/Transit
+  const recentArrivals = blocks
+    .filter(b => b.status === BlockStatus.GANTRY)
+    .slice(0, 8);
+
   return (
     <div className="flex flex-col lg:flex-row gap-8 pb-32">
       <div className="flex-1 bg-white border-2 border-[#5c4033] rounded-2xl p-6 lg:p-8 shadow-2xl relative overflow-hidden">
@@ -232,15 +238,15 @@ export const BlockArrival: React.FC<Props> = ({ onSuccess, activeStaff, blocks }
       <div className="lg:w-80 space-y-4">
         <div className="bg-emerald-50 border border-emerald-100 p-5 rounded-xl">
           <div className="text-xs font-bold text-emerald-800 uppercase tracking-wider mb-1">Today's Arrivals</div>
-          <div className="text-3xl font-black text-emerald-900">{blocks.filter(b => b.arrivalDate === new Date().toISOString().split('T')[0]).length}</div>
+          <div className="text-3xl font-black text-emerald-900">{blocks.filter(b => b.status === BlockStatus.GANTRY && b.arrivalDate === new Date().toISOString().split('T')[0]).length}</div>
         </div>
         
         <div className="bg-white border border-[#d6d3d1] rounded-xl overflow-hidden shadow-sm flex-1">
           <div className="bg-[#f5f5f4] px-4 py-3 border-b border-[#d6d3d1]">
-            <h3 className="text-xs font-bold text-[#78716c] uppercase">Recent Log</h3>
+            <h3 className="text-xs font-bold text-[#78716c] uppercase">Recent Log (Factory)</h3>
           </div>
           <div className="divide-y divide-stone-100 max-h-[500px] overflow-y-auto">
-            {blocks.slice(0, 8).map(b => (
+            {recentArrivals.map(b => (
               <div key={b.id} className="px-4 py-3 hover:bg-[#faf9f6]">
                 <div className="flex justify-between">
                   <span className="font-bold text-xs text-[#292524]">{b.jobNo}</span>
@@ -249,6 +255,9 @@ export const BlockArrival: React.FC<Props> = ({ onSuccess, activeStaff, blocks }
                 <div className="text-[10px] text-[#78716c] mt-0.5">{b.company} &bull; {b.weight}T</div>
               </div>
             ))}
+            {recentArrivals.length === 0 && (
+                <div className="p-4 text-center text-[10px] text-stone-400 italic">No factory arrivals yet</div>
+            )}
           </div>
         </div>
       </div>

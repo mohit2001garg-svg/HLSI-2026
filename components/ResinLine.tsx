@@ -349,8 +349,19 @@ const ResinLineCard: React.FC<{
                   <div className="text-3xl lg:text-4xl font-bold text-[#292524] leading-none tracking-tight">
                     {activeBlocks.length} Blocks
                   </div>
-                  <div className="mt-3 text-xs text-[#78716c] font-medium max-h-20 overflow-y-auto">
-                    {activeBlocks.map(b => `#${b.jobNo}`).join(', ')}
+                  <div className="mt-3 text-xs text-[#78716c] font-medium max-h-24 overflow-y-auto">
+                    <ul className="space-y-1">
+                      {activeBlocks.map(b => (
+                        <li key={b.id} className="flex justify-between items-center border-b border-stone-200 pb-1 last:border-0">
+                          <div className="flex flex-col leading-tight">
+                             <span className="font-bold">#{b.jobNo}</span>
+                             <span className="text-[9px] text-[#78716c] uppercase font-bold">{b.company}</span>
+                          </div>
+                          <span className="text-[#57534e]">{b.material}</span>
+                          <span className="text-[#a8a29e]">{b.weight?.toFixed(2)} T</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 </div>
                 <div className="text-left md:text-right shrink-0">

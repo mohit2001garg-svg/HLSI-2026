@@ -306,8 +306,10 @@ const MachineCard: React.FC<{
                 <div className="text-xl font-bold text-[#292524] leading-tight truncate mb-1">
                   {currentBlock.company}
                 </div>
-                <div className="text-xs text-[#78716c] font-medium truncate">
-                  {currentBlock.material}
+                <div className="flex gap-3 text-xs text-[#78716c] font-medium">
+                  <span>{currentBlock.material}</span>
+                  <span className="text-[#a8a29e]">&bull;</span>
+                  <span>{currentBlock.weight?.toFixed(2)} T</span>
                 </div>
               </div>
 
