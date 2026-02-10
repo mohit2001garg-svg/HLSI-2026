@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { db, checkPermission } from '../services/db';
 import { Block, BlockStatus, PowerCut, ResinTreatmentType, StaffMember } from '../types';
+import ExcelJS from 'exceljs';
 
 interface Props {
   blocks: Block[];
@@ -468,9 +469,103 @@ const ResinLineCard: React.FC<{
 };
 
 export const ResinLine: React.FC<Props> = ({ blocks, onRefresh, isGuest, activeStaff }) => {
-    // Collect ALL blocks currently in Resin status
+    const [isExporting, setIsExporting] = useState(false);
+    const [showExportModal, setShowExportModal] = useState(false);
+    const [exportStart, setExportStart] = useState('');
+    const [exportEnd, setExportEnd] = useState('');
+
     const activeBlocks = blocks.filter(b => b.status === BlockStatus.RESINING);
     const availableBlocks = blocks.filter(b => b.status === BlockStatus.PROCESSING && b.isSentToResin);
+
+    const handleExportExcel = async () => {
+      if (!exportStart || !exportEnd) {
+        alert("Please select a date range.");
+        return;
+      }
+      setIsExporting(true);
+      try {
+        const workbook = new ExcelJS.Workbook();
+        const s = new Date(exportStart);
+        const e = new Date(exportEnd);
+        e.setHours(23, 59, 59, 999);
+
+        // Sort by resin finish date ascending
+        const filteredBlocks = blocks
+          .filter(b => {
+            const dateStr = b.endTime || b.resinEndTime || b.arrivalDate;
+            if (!dateStr) return false;
+            const d = new Date(dateStr);
+            return d >= s && d <= e;
+          })
+          .sort((a, b) => {
+            const dA = new Date(a.endTime || a.resinEndTime || a.arrivalDate || 0).getTime();
+            const dB = new Date(b.endTime || b.resinEndTime || b.arrivalDate || 0).getTime();
+            return dA - dB;
+          });
+
+        const columns = [
+          { header: 'Date', key: 'date', width: 15 },
+          { header: 'Job No', key: 'jobNo', width: 15 },
+          { header: 'Company', key: 'company', width: 25 },
+          { header: 'Material', key: 'material', width: 20 },
+          { header: 'Marka', key: 'marka', width: 15 },
+          { header: 'Thickness', key: 'thickness', width: 12 },
+          { header: 'Weight (T)', key: 'weight', width: 12 },
+          { header: 'Dimensions', key: 'dim', width: 15 },
+          { header: 'Process', key: 'process', width: 20 }
+        ];
+
+        const formatThickness = (t: string | undefined) => {
+          if (!t) return '-';
+          const val = t.toUpperCase().trim();
+          return val.includes('MM') ? val : `${val} MM`;
+        };
+
+        const mapBlock = (b: Block) => ({
+          date: new Date(b.endTime || b.resinEndTime || b.arrivalDate || 0).toLocaleDateString(),
+          jobNo: b.jobNo,
+          company: b.company,
+          material: b.material,
+          marka: b.minesMarka || '',
+          thickness: formatThickness(b.thickness),
+          weight: b.weight?.toFixed(2),
+          dim: b.status === BlockStatus.COMPLETED || b.status === BlockStatus.IN_STOCKYARD || b.status === BlockStatus.SOLD
+            ? `${Math.round(b.slabLength || 0)} x ${Math.round(b.slabWidth || 0)}`
+            : `${Math.round(b.length || 0)} x ${Math.round(b.height || 0)} x ${Math.round(b.width || 0)}`,
+          process: b.resinTreatmentType || '-'
+        });
+
+        const setupSheet = (name: string, data: any[]) => {
+          const sheet = workbook.addWorksheet(name);
+          sheet.columns = columns;
+          const headerRow = sheet.getRow(1);
+          headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+          headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF5C4033' } };
+          headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
+          data.forEach(row => {
+            const r = sheet.addRow(row);
+            r.eachCell(cell => cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} });
+          });
+        };
+
+        // Only Resin tab per request
+        setupSheet('Resin', filteredBlocks.filter(b => b.resinEndTime || b.resinTreatmentType).map(mapBlock));
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `Resin_Production_Report_${exportStart}_to_${exportEnd}.xlsx`;
+        anchor.click();
+        window.URL.revokeObjectURL(url);
+        setShowExportModal(false);
+      } catch (err) {
+        alert("Export failed.");
+      } finally {
+        setIsExporting(false);
+      }
+    };
 
     return (
         <div className="space-y-8 pb-20">
@@ -482,14 +577,23 @@ export const ResinLine: React.FC<Props> = ({ blocks, onRefresh, isGuest, activeS
                <p className="text-[#78716c] text-xs mt-1 font-medium">Line operations & queue</p>
              </div>
              
-             <div className="bg-white border border-[#d6d3d1] px-6 py-3 rounded-lg flex items-center space-x-4 shadow-sm">
-                <div className="text-[#a8a29e]">
-                   <i className="fas fa-list-ol text-lg"></i>
-                </div>
-                <div className="text-right">
-                   <div className="text-[10px] font-medium text-[#78716c] leading-none">Queue</div>
-                   <div className="text-xl font-semibold text-[#292524]">{availableBlocks.length}</div>
-                </div>
+             <div className="flex items-center gap-3">
+               <button 
+                 onClick={() => setShowExportModal(true)}
+                 className="bg-white border border-[#d6d3d1] hover:bg-stone-50 text-[#57534e] px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 font-bold text-xs shadow-sm transition-all"
+               >
+                 <i className="fas fa-file-excel text-green-600"></i> Detailed Export
+               </button>
+
+               <div className="bg-white border border-[#d6d3d1] px-6 py-3 rounded-lg flex items-center space-x-4 shadow-sm">
+                  <div className="text-[#a8a29e]">
+                     <i className="fas fa-list-ol text-lg"></i>
+                  </div>
+                  <div className="text-right">
+                     <div className="text-[10px] font-medium text-[#78716c] leading-none">Queue</div>
+                     <div className="text-xl font-semibold text-[#292524]">{availableBlocks.length}</div>
+                  </div>
+               </div>
              </div>
            </div>
 
@@ -503,6 +607,35 @@ export const ResinLine: React.FC<Props> = ({ blocks, onRefresh, isGuest, activeS
                   activeStaff={activeStaff}
                />
            </div>
+
+           {/* Export Modal */}
+           {showExportModal && (
+             <div className="fixed inset-0 z-[600] bg-stone-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+               <div className="bg-white rounded-2xl w-full max-w-sm p-8 shadow-2xl animate-in zoom-in-95">
+                  <div className="flex justify-between items-center mb-6">
+                     <h3 className="text-lg font-bold text-[#292524]">Select Export Range</h3>
+                     <button onClick={() => setShowExportModal(false)} className="text-[#a8a29e] hover:text-[#57534e] transition-colors"><i className="fas fa-times"></i></button>
+                  </div>
+                  <div className="space-y-4">
+                     <div>
+                        <label className="block text-[10px] font-bold text-[#a8a29e] mb-1 uppercase tracking-wider">Start Date</label>
+                        <input type="date" className="w-full border border-[#d6d3d1] p-3 rounded-lg text-sm" value={exportStart} onChange={e => setExportStart(e.target.value)} />
+                     </div>
+                     <div>
+                        <label className="block text-[10px] font-bold text-[#a8a29e] mb-1 uppercase tracking-wider">End Date</label>
+                        <input type="date" className="w-full border border-[#d6d3d1] p-3 rounded-lg text-sm" value={exportEnd} onChange={e => setExportEnd(e.target.value)} />
+                     </div>
+                     <div className="pt-4 flex gap-3">
+                        <button onClick={() => setShowExportModal(false)} className="flex-1 py-3 border rounded-lg text-xs font-bold text-stone-500">Cancel</button>
+                        <button onClick={handleExportExcel} disabled={isExporting} className="flex-[2] py-3 bg-[#5c4033] text-white rounded-lg text-xs font-bold shadow-md">
+                          {isExporting ? <i className="fas fa-spinner fa-spin mr-2"></i> : <i className="fas fa-file-excel mr-2"></i>}
+                          {isExporting ? 'Generating...' : 'Export Excel'}
+                        </button>
+                     </div>
+                  </div>
+               </div>
+             </div>
+           )}
         </div>
     );
 };

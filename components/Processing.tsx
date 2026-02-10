@@ -33,6 +33,12 @@ export const Processing: React.FC<Props> = ({ blocks, onRefresh, isGuest, active
   const [saleFormData, setSaleFormData] = useState({ soldTo: '', billNo: '', soldSqFt: '' });
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
+  // Export State
+  const [isExporting, setIsExporting] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportStart, setExportStart] = useState('');
+  const [exportEnd, setExportEnd] = useState('');
+
   const normalize = (s: string) => (s || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
 
   // Derive unique companies for the dropdown (Merged variations)
@@ -80,10 +86,9 @@ export const Processing: React.FC<Props> = ({ blocks, onRefresh, isGuest, active
     [processingBlocks, activeStaff]
   );
 
-  const isAllSelected = selectableBlocks.length > 0 && selectableBlocks.every(b => selectedIds.has(b.id));
-
   const handleSelectAll = () => {
     if (isGuest) return;
+    const isAllSelected = selectableBlocks.length > 0 && selectableBlocks.every(b => selectedIds.has(b.id));
     if (isAllSelected) {
       const newSelected = new Set(selectedIds);
       selectableBlocks.forEach(b => newSelected.delete(b.id));
@@ -156,8 +161,6 @@ export const Processing: React.FC<Props> = ({ blocks, onRefresh, isGuest, active
     try {
       const soldAt = new Date().toISOString();
       const block = saleModalOpen.block;
-      
-      // Update the block to SOLD status
       await db.updateBlock(block.id, {
         status: BlockStatus.SOLD,
         soldTo: saleFormData.soldTo.toUpperCase(),
@@ -165,7 +168,6 @@ export const Processing: React.FC<Props> = ({ blocks, onRefresh, isGuest, active
         totalSqFt: Number(saleFormData.soldSqFt) || 0,
         soldAt: soldAt
       });
-
       setSaleModalOpen({ open: false, block: null });
       setSaleFormData({ soldTo: '', billNo: '', soldSqFt: '' });
       onRefresh();
@@ -177,93 +179,91 @@ export const Processing: React.FC<Props> = ({ blocks, onRefresh, isGuest, active
     }
   };
 
-  const getCellValue = (rowOrCell: any, colNumber?: number) => {
-    const cell = (colNumber && typeof rowOrCell.getCell === 'function') ? rowOrCell.getCell(colNumber) : rowOrCell;
-    if (!cell) return '';
-    const val = cell.value;
-    if (val === null || val === undefined) return '';
-    if (typeof val === 'object') {
-       if ('result' in val) return String(val.result || '').trim();
-       if ('text' in val) return String(val.text || '').trim();
-       if ('richText' in val) return val.richText.map((rt: any) => rt.text).join('').trim();
+  const handleExportExcel = async () => {
+    if (!exportStart || !exportEnd) {
+      alert("Please select a date range.");
+      return;
     }
-    return String(val).trim();
-  };
-
-  const getNumericValue = (row: ExcelJS.Row, colNumber?: number) => {
-    const val = getCellValue(row, colNumber);
-    if (!val) return 0;
-    const num = parseFloat(val.replace(/[^0-9.-]/g, ''));
-    return num || 0;
-  };
-
-  const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || isGuest) return;
-    setIsImporting(true);
-    setImportSummary(null);
-    const summary: ImportSummary = { success: 0, duplicates: [], invalid: [] };
+    setIsExporting(true);
     try {
       const workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.load(await file.arrayBuffer());
-      const worksheet = workbook.worksheets[0];
-      const headerRow = worksheet.getRow(1);
-      const colMap: Record<string, number> = {};
-      headerRow.eachCell((cell, colNumber) => {
-        const val = getCellValue(cell).toLowerCase().trim().replace(/[^a-z0-9]/g, '');
-        if (val.includes('job') || val === 'no') colMap['jobNo'] = colNumber;
-        else if (val.includes('company')) colMap['company'] = colNumber;
-        else if (val.includes('material')) colMap['material'] = colNumber;
-        else if (val.includes('marka')) colMap['minesMarka'] = colNumber;
-        else if (val.includes('weight') || val.includes('ton')) colMap['weight'] = colNumber;
-        else if (val === 'l') colMap['slabLength'] = colNumber;
-        else if (val === 'h') colMap['slabWidth'] = colNumber;
-        else if (val.includes('pcs') || val.includes('count')) colMap['slabCount'] = colNumber;
-        else if (val.includes('sqft') || val.includes('sq ft') || val.includes('area')) colMap['totalSqFt'] = colNumber;
-        else if (val.includes('thickness')) colMap['thickness'] = colNumber;
-      });
+      const s = new Date(exportStart);
+      const e = new Date(exportEnd);
+      e.setHours(23, 59, 59, 999);
 
-      if (!colMap['jobNo'] || !colMap['company']) throw new Error("Excel format invalid. Required: JOB NO, COMPANY");
-
-      const newBlocks: Block[] = [];
-      const existingJobNos = new Set(blocks.map(b => b.jobNo.toUpperCase()));
-      const seenInFile = new Set<string>();
-
-      worksheet.eachRow((row, rowNumber) => {
-        if (rowNumber <= 1) return;
-        const jobNo = getCellValue(row, colMap['jobNo']).toUpperCase();
-        if (!jobNo) { summary.invalid.push(`Row ${rowNumber}: Missing Job No`); return; }
-        if (existingJobNos.has(jobNo) || seenInFile.has(jobNo)) { summary.duplicates.push(jobNo); return; }
-
-        newBlocks.push({
-          id: crypto.randomUUID(),
-          jobNo,
-          company: getCellValue(row, colMap['company']).toUpperCase(),
-          material: getCellValue(row, colMap['material']).toUpperCase() || 'UNKNOWN',
-          minesMarka: getCellValue(row, colMap['minesMarka']).toUpperCase() || '',
-          weight: getNumericValue(row, colMap['weight']),
-          thickness: getCellValue(row, colMap['thickness']),
-          slabLength: getNumericValue(row, colMap['slabLength']),
-          slabWidth: getNumericValue(row, colMap['slabWidth']),
-          slabCount: Math.round(getNumericValue(row, colMap['slabCount'])),
-          totalSqFt: getNumericValue(row, colMap['totalSqFt']),
-          status: BlockStatus.PROCESSING,
-          arrivalDate: new Date().toISOString().split('T')[0],
-          length: 0, width: 0, height: 0, 
-          isPriority: false, preCuttingProcess: 'None', enteredBy: activeStaff,
-          powerCuts: [], processingStage: 'Field', processingStartedAt: new Date().toISOString()
+      // Sort by date ascending
+      const filteredBlocks = blocks
+        .filter(b => {
+          const dateStr = b.endTime || b.resinEndTime || b.arrivalDate;
+          if (!dateStr) return false;
+          const d = new Date(dateStr);
+          return d >= s && d <= e;
+        })
+        .sort((a, b) => {
+          const dA = new Date(a.endTime || a.resinEndTime || a.arrivalDate || 0).getTime();
+          const dB = new Date(b.endTime || b.resinEndTime || b.arrivalDate || 0).getTime();
+          return dA - dB;
         });
-        seenInFile.add(jobNo);
-        summary.success++;
+
+      const columns = [
+        { header: 'Date', key: 'date', width: 15 },
+        { header: 'Job No', key: 'jobNo', width: 15 },
+        { header: 'Company', key: 'company', width: 25 },
+        { header: 'Material', key: 'material', width: 20 },
+        { header: 'Marka', key: 'marka', width: 15 },
+        { header: 'Thickness', key: 'thickness', width: 12 },
+        { header: 'Weight (T)', key: 'weight', width: 12 },
+        { header: 'Dimensions', key: 'dim', width: 15 }
+      ];
+
+      const formatThickness = (t: string | undefined) => {
+        if (!t) return '-';
+        const val = t.toUpperCase().trim();
+        return val.includes('MM') ? val : `${val} MM`;
+      };
+
+      const mapBlock = (b: Block) => ({
+        date: new Date(b.endTime || b.resinEndTime || b.arrivalDate || 0).toLocaleDateString(),
+        jobNo: b.jobNo,
+        company: b.company,
+        material: b.material,
+        marka: b.minesMarka || '',
+        thickness: formatThickness(b.thickness),
+        weight: b.weight?.toFixed(2),
+        dim: b.status === BlockStatus.COMPLETED || b.status === BlockStatus.IN_STOCKYARD || b.status === BlockStatus.SOLD
+          ? `${Math.round(b.slabLength || 0)} x ${Math.round(b.slabWidth || 0)}`
+          : `${Math.round(b.length || 0)} x ${Math.round(b.height || 0)} x ${Math.round(b.width || 0)}`
       });
 
-      if (newBlocks.length > 0) { await db.addBlocks(newBlocks); onRefresh(); }
-      setImportSummary(summary);
-    } catch (err: any) {
-      alert(`Import error: ${err.message}`);
+      const setupSheet = (name: string, data: any[]) => {
+        const sheet = workbook.addWorksheet(name);
+        sheet.columns = columns;
+        const headerRow = sheet.getRow(1);
+        headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF5C4033' } };
+        headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
+        data.forEach(row => {
+          const r = sheet.addRow(row);
+          r.eachCell(cell => cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} });
+        });
+      };
+
+      // Only include Vacuum tab per request
+      setupSheet('Vacuum', filteredBlocks.filter(b => b.preCuttingProcess === 'VACCUM').map(mapBlock));
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `Vacuum_Processing_Report_${exportStart}_to_${exportEnd}.xlsx`;
+      anchor.click();
+      window.URL.revokeObjectURL(url);
+      setShowExportModal(false);
+    } catch (err) {
+      alert("Export failed.");
     } finally {
-      setIsImporting(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      setIsExporting(false);
     }
   };
 
@@ -291,14 +291,23 @@ export const Processing: React.FC<Props> = ({ blocks, onRefresh, isGuest, active
     <div className="space-y-6 pb-24">
       
       {/* SECTION HEADER */}
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-stone-100 rounded-lg flex items-center justify-center text-stone-500 shadow-sm">
-          <i className="fas fa-arrows-spin text-lg"></i>
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-stone-100 rounded-lg flex items-center justify-center text-stone-500 shadow-sm">
+            <i className="fas fa-arrows-spin text-lg"></i>
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-[#292524] leading-tight">Processing</h2>
+            <p className="text-[10px] text-[#78716c] font-medium">Floor Operations & Output</p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-xl font-bold text-[#292524] leading-tight">Processing</h2>
-          <p className="text-[10px] text-[#78716c] font-medium">Floor Operations & Output</p>
-        </div>
+        
+        <button 
+          onClick={() => setShowExportModal(true)}
+          className="bg-white border border-[#d6d3d1] hover:bg-stone-50 text-[#57534e] px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 font-bold text-xs shadow-sm transition-all"
+        >
+          <i className="fas fa-file-excel text-green-600"></i> Detailed Export
+        </button>
       </div>
         
       {/* FILTER BAR - Compact */}
@@ -324,19 +333,6 @@ export const Processing: React.FC<Props> = ({ blocks, onRefresh, isGuest, active
               {companies.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
-          
-          {!isGuest && (
-            <div className="flex gap-2">
-              <button 
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isImporting}
-                className="flex-1 bg-[#f5f5f4] hover:bg-stone-200 text-[#57534e] rounded-lg flex items-center justify-center gap-1 font-bold text-[10px] uppercase tracking-wider"
-              >
-                {isImporting ? <i className="fas fa-spinner fa-spin"></i> : 'Import'}
-              </button>
-              <input type="file" ref={fileInputRef} className="hidden" accept=".xlsx" onChange={handleImportExcel} />
-            </div>
-          )}
         </div>
         
         {/* Bulk Delete */}
@@ -443,7 +439,6 @@ export const Processing: React.FC<Props> = ({ blocks, onRefresh, isGuest, active
                   {!isGuest && (
                     <input 
                       type="checkbox" 
-                      checked={isAllSelected} 
                       onChange={handleSelectAll} 
                       className="w-4 h-4 rounded border-stone-300 text-[#5c4033] cursor-pointer" 
                     />
@@ -526,7 +521,7 @@ export const Processing: React.FC<Props> = ({ blocks, onRefresh, isGuest, active
         </div>
       </div>
 
-      {/* SALE MODAL */}
+      {/* Sale Modal */}
       {saleModalOpen.open && (
         <div className="fixed inset-0 z-[600] bg-stone-900/80 backdrop-blur-md flex items-center justify-center p-4">
            <div className="bg-white rounded-2xl w-full max-w-lg p-8 shadow-2xl animate-in zoom-in-95">
@@ -575,7 +570,7 @@ export const Processing: React.FC<Props> = ({ blocks, onRefresh, isGuest, active
         </div>
       )}
 
-      {/* FINISH MODAL */}
+      {/* Finish Modal */}
       {finishModalOpen && (
         <div className="fixed inset-0 z-[600] bg-stone-900/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-in zoom-in-95">
@@ -617,6 +612,35 @@ export const Processing: React.FC<Props> = ({ blocks, onRefresh, isGuest, active
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Export Modal */}
+      {showExportModal && (
+        <div className="fixed inset-0 z-[600] bg-stone-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-8 shadow-2xl animate-in zoom-in-95">
+             <div className="flex justify-between items-center mb-6">
+                <h3 className="text-lg font-bold text-[#292524]">Select Export Range</h3>
+                <button onClick={() => setShowExportModal(false)} className="text-[#a8a29e] hover:text-[#57534e] transition-colors"><i className="fas fa-times"></i></button>
+             </div>
+             <div className="space-y-4">
+                <div>
+                   <label className="block text-[10px] font-bold text-[#a8a29e] mb-1 uppercase tracking-wider">Start Date</label>
+                   <input type="date" className="w-full border border-[#d6d3d1] p-3 rounded-lg text-sm" value={exportStart} onChange={e => setExportStart(e.target.value)} />
+                </div>
+                <div>
+                   <label className="block text-[10px] font-bold text-[#a8a29e] mb-1 uppercase tracking-wider">End Date</label>
+                   <input type="date" className="w-full border border-[#d6d3d1] p-3 rounded-lg text-sm" value={exportEnd} onChange={e => setExportEnd(e.target.value)} />
+                </div>
+                <div className="pt-4 flex gap-3">
+                   <button onClick={() => setShowExportModal(false)} className="flex-1 py-3 border rounded-lg text-xs font-bold text-stone-500">Cancel</button>
+                   <button onClick={handleExportExcel} disabled={isExporting} className="flex-[2] py-3 bg-[#5c4033] text-white rounded-lg text-xs font-bold shadow-md">
+                     {isExporting ? <i className="fas fa-spinner fa-spin mr-2"></i> : <i className="fas fa-file-excel mr-2"></i>}
+                     {isExporting ? 'Generating...' : 'Export Excel'}
+                   </button>
+                </div>
+             </div>
           </div>
         </div>
       )}

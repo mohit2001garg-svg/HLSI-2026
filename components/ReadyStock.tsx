@@ -20,7 +20,6 @@ export const ReadyStock: React.FC<Props> = ({ blocks, onRefresh, isGuest, active
   const [selectedMonth, setSelectedMonth] = useState<string>('ALL');
   const [selectedYear, setSelectedYear] = useState<string>('ALL');
   const [transferringId, setTransferringId] = useState<string | null>(null);
-  const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -56,7 +55,6 @@ export const ReadyStock: React.FC<Props> = ({ blocks, onRefresh, isGuest, active
     return Array.from(map.values()).sort();
   }, [blocks]);
 
-  // Helpers omitted for brevity ...
   const getCellValue = (row: any, colNumber?: number): string => {
     if (!colNumber) return '';
     try {
@@ -138,18 +136,6 @@ export const ReadyStock: React.FC<Props> = ({ blocks, onRefresh, isGuest, active
     }
   };
 
-  const handleExportExcel = async () => {
-    setIsExporting(true);
-    // Export logic omitted for brevity but preserved ...
-    try {
-        // ... (standard export logic)
-        // Simulate
-        await new Promise(resolve => setTimeout(resolve, 500));
-        alert('Export simulated');
-    } catch(e) { console.error(e) }
-    setIsExporting(false);
-  };
-
   const handleTransfer = (id: string, location: StockyardLocation, company: string) => {
     if (isGuest || !checkPermission(activeStaff, company)) return;
     db.updateBlock(id, { 
@@ -162,8 +148,6 @@ export const ReadyStock: React.FC<Props> = ({ blocks, onRefresh, isGuest, active
   };
 
   const locations: StockyardLocation[] = ['Showroom', 'Service Lane', 'Field', 'RP Yard'];
-
-  const commonInputStyle = "w-full bg-white border border-[#d6d3d1] rounded-lg px-3 py-2.5 text-xs font-medium focus:border-[#5c4033] outline-none shadow-sm transition-all";
 
   return (
     <div className="space-y-6 pb-20">
@@ -180,9 +164,9 @@ export const ReadyStock: React.FC<Props> = ({ blocks, onRefresh, isGuest, active
       </div>
 
       {/* FILTER BAR - Compact */}
-      <div className="bg-white p-3 rounded-xl border border-[#d6d3d1] shadow-sm">
-        <div className="grid grid-cols-2 gap-2">
-          <div className="col-span-2 relative">
+      <div className="bg-white p-4 rounded-xl border border-[#d6d3d1] shadow-sm space-y-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="col-span-2 lg:col-span-1 relative">
             <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-[#a8a29e] text-xs"></i>
             <input 
               type="text" 
@@ -193,20 +177,30 @@ export const ReadyStock: React.FC<Props> = ({ blocks, onRefresh, isGuest, active
             />
           </div>
           
-          <div className="flex gap-2 col-span-2">
-             {!isGuest && (
-               <>
-                 <input type="file" ref={fileInputRef} className="hidden" accept=".xlsx" onChange={handleImportExcel} />
-                 <button onClick={() => fileInputRef.current?.click()} className="flex-1 bg-[#f5f5f4] hover:bg-stone-200 text-[#57534e] px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all">
-                   <i className="fas fa-file-import mr-1"></i> Import
-                 </button>
-               </>
-             )}
-             <button onClick={handleExportExcel} className="flex-1 bg-[#f5f5f4] hover:bg-stone-200 text-[#57534e] px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all">
-               <i className="fas fa-file-excel mr-1 text-green-600"></i> Export
+          <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="bg-[#f5f5f4] border-transparent rounded-lg p-2.5 text-xs font-medium outline-none focus:bg-white focus:border-[#5c4033]">
+            <option value="ALL">All Months</option>
+            {MONTHS.map((m, i) => <option key={m} value={i}>{m}</option>)}
+          </select>
+
+          <select value={selectedYear} onChange={e => setSelectedYear(e.target.value)} className="bg-[#f5f5f4] border-transparent rounded-lg p-2.5 text-xs font-medium outline-none focus:bg-white focus:border-[#5c4033]">
+            <option value="ALL">All Years</option>
+            {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+
+          <select value={selectedCompany} onChange={e => setSelectedCompany(e.target.value)} className="bg-[#f5f5f4] border-transparent rounded-lg p-2.5 text-xs font-medium outline-none focus:bg-white focus:border-[#5c4033]">
+            <option value="ALL">All Parties</option>
+            {uniqueCompanies.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+
+        {!isGuest && (
+          <div className="flex gap-2 w-full lg:w-auto mt-2 pt-2 border-t border-[#f5f5f4]">
+             <input type="file" ref={fileInputRef} className="hidden" accept=".xlsx" onChange={handleImportExcel} />
+             <button onClick={() => fileInputRef.current?.click()} className="flex-1 lg:px-6 bg-[#f5f5f4] hover:bg-stone-200 text-[#57534e] py-2.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all">
+               Import Slabs
              </button>
           </div>
-        </div>
+        )}
       </div>
 
       {/* MOBILE CARD VIEW */}
@@ -226,7 +220,7 @@ export const ReadyStock: React.FC<Props> = ({ blocks, onRefresh, isGuest, active
             
             <div className="border-t border-[#f5f5f4] pt-2 mt-2 flex justify-between items-center text-[10px] font-medium text-[#57534e]">
               <span>{block.material}</span>
-              <span className="text-[#a8a29e]">{block.minesMarka}</span>
+              <span className="text-[#a8a29e]">{block.cutByMachine || (block.resinEndTime ? 'Resin Plant' : '-')}</span>
             </div>
 
             <div className="mt-3 pt-3 border-t border-[#f5f5f4]">
@@ -260,13 +254,14 @@ export const ReadyStock: React.FC<Props> = ({ blocks, onRefresh, isGuest, active
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="bg-[#f5f5f4] text-[#78716c] font-bold uppercase">
-              <tr><th className="px-8 py-5">Job / Company</th><th className="px-8 py-5">Output</th><th className="px-8 py-5 text-right">Actions</th></tr>
+              <tr><th className="px-8 py-5">Job / Company</th><th className="px-8 py-5">Output</th><th className="px-8 py-5">Process</th><th className="px-8 py-5 text-right">Actions</th></tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
               {readyBlocks.map(block => (
                 <tr key={block.id} className="hover:bg-[#faf9f6] transition-colors">
                   <td className="px-8 py-5"><div className="font-bold text-lg">#{block.jobNo} | {block.company}</div><div className="text-[10px] text-[#78716c]">{block.material}</div></td>
                   <td className="px-8 py-5"><div className="font-bold text-[#5c4033]">{block.totalSqFt?.toFixed(2)} ft</div><div className="text-[10px]">{block.slabCount} slabs</div></td>
+                  <td className="px-8 py-5 font-medium text-[#78716c]">{block.cutByMachine || (block.resinEndTime ? 'Resin Plant' : '-')}</td>
                   <td className="px-8 py-5 text-right">
                     {!isGuest && (
                       <div className="flex flex-col items-end gap-2">
@@ -286,7 +281,7 @@ export const ReadyStock: React.FC<Props> = ({ blocks, onRefresh, isGuest, active
                 </tr>
               ))}
               {readyBlocks.length === 0 && (
-                <tr><td colSpan={3} className="px-8 py-12 text-center text-stone-400 italic">No ready stock available.</td></tr>
+                <tr><td colSpan={4} className="px-8 py-12 text-center text-stone-400 italic">No ready stock available.</td></tr>
               )}
             </tbody>
           </table>
