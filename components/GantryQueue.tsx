@@ -35,20 +35,29 @@ export const GantryQueue: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
   const [saleModalOpen, setSaleModalOpen] = useState<{ open: boolean; block: Block | null }>({ open: false, block: null });
   const [saleFormData, setSaleFormData] = useState({ soldTo: '', billNo: '', soldWeight: '' });
 
+  const normalize = (s: string) => (s || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+
   const rawGantryBlocks = useMemo(() => 
     blocks.filter(b => b.status === BlockStatus.GANTRY && !localHiddenIds.has(b.id)), 
     [blocks, localHiddenIds]
   );
 
-  const uniqueCompanies = useMemo(() => 
-    Array.from(new Set(rawGantryBlocks.map(b => b.company))).sort(), 
-    [rawGantryBlocks]
-  );
+  const uniqueCompanies = useMemo(() => {
+    const map = new Map<string, string>();
+    rawGantryBlocks.forEach(b => {
+      const name = b.company.trim();
+      const norm = normalize(name);
+      if (norm && !map.has(norm)) {
+        map.set(norm, name);
+      }
+    });
+    return Array.from(map.values()).sort();
+  }, [rawGantryBlocks]);
   
   const availableMaterials = useMemo(() => {
     const blocksForMaterials = selectedCompany === 'ALL' 
       ? rawGantryBlocks 
-      : rawGantryBlocks.filter(b => b.company === selectedCompany);
+      : rawGantryBlocks.filter(b => normalize(b.company) === normalize(selectedCompany));
     return Array.from(new Set(blocksForMaterials.map(b => b.material))).sort();
   }, [rawGantryBlocks, selectedCompany]);
 
@@ -58,7 +67,7 @@ export const GantryQueue: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
 
   const filtered = useMemo(() => {
     return rawGantryBlocks
-      .filter(b => selectedCompany === 'ALL' ? true : b.company === selectedCompany)
+      .filter(b => selectedCompany === 'ALL' ? true : normalize(b.company) === normalize(selectedCompany))
       .filter(b => selectedMaterial === 'ALL' ? true : b.material === selectedMaterial)
       .filter(b => {
         if (selectedMonth === 'All Months') return true;

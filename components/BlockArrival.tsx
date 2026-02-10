@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { db } from '../services/db';
 import { BlockStatus, Block, StaffMember } from '../types';
 import ExcelJS from 'exceljs';
@@ -28,6 +28,32 @@ export const BlockArrival: React.FC<Props> = ({ onSuccess, activeStaff, blocks }
     weight: '',
     arrivalDate: new Date().toISOString().split('T')[0]
   });
+
+  const normalize = (s: string) => (s || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+
+  // Extract unique normalized company names from all blocks for the dropdown
+  const existingCompanies = useMemo(() => {
+    const map = new Map<string, string>();
+    blocks.forEach(b => {
+      const name = b.company.trim();
+      const norm = normalize(name);
+      if (norm && !map.has(norm)) {
+        map.set(norm, name);
+      }
+    });
+    return Array.from(map.values()).sort();
+  }, [blocks]);
+
+  // Smart matching: If the user types a variation, match it to existing
+  const handleCompanyBlur = () => {
+    const current = formData.company.trim();
+    if (!current) return;
+    const norm = normalize(current);
+    const match = existingCompanies.find(c => normalize(c) === norm);
+    if (match && match !== current) {
+      setFormData(prev => ({ ...prev, company: match }));
+    }
+  };
 
   useEffect(() => {
     if (!isGuest && !isAdmin) { setFormData(prev => ({ ...prev, company: activeStaff })); }
@@ -92,10 +118,15 @@ export const BlockArrival: React.FC<Props> = ({ onSuccess, activeStaff, blocks }
         const jobNo = getCellValue(row, colMap['jobNo']).toUpperCase();
         if (!jobNo || existingJobNos.has(jobNo) || seenInFile.has(jobNo)) return;
 
+        // Apply smart matching during import too
+        const rawCompany = getCellValue(row, colMap['company']).toUpperCase();
+        const normCompany = normalize(rawCompany);
+        const matchedCompany = existingCompanies.find(c => normalize(c) === normCompany) || rawCompany;
+
         newBlocks.push({
           id: crypto.randomUUID(),
           jobNo,
-          company: getCellValue(row, colMap['company']).toUpperCase(),
+          company: matchedCompany,
           material: getCellValue(row, colMap['material']).toUpperCase() || 'UNKNOWN',
           minesMarka: getCellValue(row, colMap['minesMarka']).toUpperCase() || '',
           length: getNumericValue(row, colMap['length']),
@@ -197,7 +228,21 @@ export const BlockArrival: React.FC<Props> = ({ onSuccess, activeStaff, blocks }
             </div>
             <div>
               <label className={labelStyle}>Company / Party</label>
-              <input required className={commonInputStyle} placeholder="COMPANY NAME" value={formData.company} onChange={e => setFormData({...formData, company: e.target.value})} disabled={isSubmitting || isGuest || (!isAdmin && !isGuest)} />
+              <input 
+                required 
+                className={commonInputStyle} 
+                placeholder="COMPANY NAME" 
+                value={formData.company} 
+                onChange={e => setFormData({...formData, company: e.target.value})} 
+                onBlur={handleCompanyBlur}
+                disabled={isSubmitting || isGuest} 
+                list="company-suggestions"
+                autoComplete="off"
+                inputMode="text"
+              />
+              <datalist id="company-suggestions">
+                {existingCompanies.map(c => <option key={c} value={c} />)}
+              </datalist>
             </div>
           </div>
 

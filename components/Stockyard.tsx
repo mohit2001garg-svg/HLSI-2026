@@ -38,32 +38,74 @@ export const Stockyard: React.FC<Props> = ({ blocks, onRefresh, activeStaff, isG
   const [saleModalOpen, setSaleModalOpen] = useState<{ open: boolean; block: Block | null }>({ open: false, block: null });
   const [saleFormData, setSaleFormData] = useState({ soldTo: '', billNo: '', soldSqFt: '' });
 
+  // Normalization logic
+  const normalize = (s: string) => (s || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+
+  // Helper to format thickness with MM
+  const formatThickness = (t: string | undefined) => {
+    if (!t) return '-';
+    const val = t.toUpperCase().trim();
+    return val.includes('MM') ? val : `${val} MM`;
+  };
+
   // Base list of yard blocks (unfiltered by selection, only status)
   const baseYardBlocks = useMemo(() => blocks.filter(b => b.status === BlockStatus.IN_STOCKYARD), [blocks]);
 
-  // Unique companies available in Stockyard
-  const uniqueCompanies = useMemo(() => 
-    Array.from(new Set(baseYardBlocks.map(b => b.company))).sort(), 
-  [baseYardBlocks]);
+  // Unique companies available globally to suggest in manual add
+  const globalCompanies = useMemo(() => {
+    const map = new Map<string, string>();
+    blocks.forEach(b => {
+      const name = b.company.trim();
+      const norm = normalize(name);
+      if (norm && !map.has(norm)) {
+        map.set(norm, name);
+      }
+    });
+    return Array.from(map.values()).sort();
+  }, [blocks]);
+
+  const handleManualCompanyBlur = () => {
+    const current = newBlockData.company?.trim();
+    if (!current) return;
+    const norm = normalize(current);
+    const match = globalCompanies.find(c => normalize(c) === norm);
+    if (match && match !== current) {
+      setNewBlockData(prev => ({ ...prev, company: match }));
+    }
+  };
+
+  // Unique companies available in Stockyard (Merged variation entries)
+  const uniqueCompanies = useMemo(() => {
+    const map = new Map<string, string>();
+    baseYardBlocks.forEach(b => {
+      const name = b.company.trim();
+      const norm = normalize(name);
+      if (norm && !map.has(norm)) {
+        map.set(norm, name);
+      }
+    });
+    return Array.from(map.values()).sort();
+  }, [baseYardBlocks]);
 
   // Derived options for Material and Location based on Selected Company
   const availableMaterials = useMemo(() => {
     const companyFiltered = selectedCompany === 'ALL' 
       ? baseYardBlocks 
-      : baseYardBlocks.filter(b => b.company === selectedCompany);
+      : baseYardBlocks.filter(b => normalize(b.company) === normalize(selectedCompany));
     return Array.from(new Set(companyFiltered.map(b => b.material))).sort();
   }, [baseYardBlocks, selectedCompany]);
 
   const availableLocations = useMemo(() => {
     const companyFiltered = selectedCompany === 'ALL' 
       ? baseYardBlocks 
-      : baseYardBlocks.filter(b => b.company === selectedCompany);
-    return Array.from(new Set(companyFiltered.map(b => b.stockyardLocation).filter(Boolean))).sort() as StockyardLocation[];
+      : baseYardBlocks.filter(b => normalize(b.company) === normalize(selectedCompany));
+    // Normalize to uppercase and deduplicate
+    return Array.from(new Set(companyFiltered.map(b => b.stockyardLocation?.toUpperCase()).filter(Boolean))).sort();
   }, [baseYardBlocks, selectedCompany]);
 
   const yardBlocks = useMemo(() => 
     baseYardBlocks
-      .filter(b => selectedCompany === 'ALL' ? true : b.company === selectedCompany)
+      .filter(b => selectedCompany === 'ALL' ? true : normalize(b.company) === normalize(selectedCompany))
       .filter(b => selectedLocation === 'ALL' ? true : (b.stockyardLocation?.toUpperCase() === selectedLocation.toUpperCase()))
       .filter(b => selectedMaterial === 'ALL' ? true : b.material === selectedMaterial)
       .filter(b => {
@@ -187,7 +229,7 @@ export const Stockyard: React.FC<Props> = ({ blocks, onRefresh, activeStaff, isG
         else if (val.includes('sqft') || val.includes('sq ft') || val.includes('area')) colMap['totalSqFt'] = colNumber;
         else if (val.includes('msp') || val.includes('price')) colMap['msp'] = colNumber;
         else if (val.includes('loc')) colMap['location'] = colNumber;
-        
+        else if (val.includes('thickness')) colMap['thickness'] = colNumber;
         else if (val === 'l' || val === 'len' || val === 'length') colMap['slabLength'] = colNumber;
         else if (val === 'w' || val === 'wid' || val === 'width') colMap['slabWidth'] = colNumber;
         else if (val === 'h' || val === 'height') colMap['slabWidth'] = colNumber;
@@ -230,10 +272,15 @@ export const Stockyard: React.FC<Props> = ({ blocks, onRefresh, activeStaff, isG
              }
         }
 
+        // Import matching
+        const rawCompany = getCellValue(row, colMap['company']).toUpperCase() || 'UNKNOWN';
+        const normCompany = normalize(rawCompany);
+        const matchedCompany = globalCompanies.find(c => normalize(c) === normCompany) || rawCompany;
+
         newBlocks.push({
           id: crypto.randomUUID(),
           jobNo,
-          company: getCellValue(row, colMap['company']).toUpperCase() || 'UNKNOWN',
+          company: matchedCompany,
           material: getCellValue(row, colMap['material']).toUpperCase() || 'UNKNOWN',
           minesMarka: getCellValue(row, colMap['minesMarka']).toUpperCase() || '',
           weight: getNumericValue(row, colMap['weight']),
@@ -242,7 +289,9 @@ export const Stockyard: React.FC<Props> = ({ blocks, onRefresh, activeStaff, isG
           slabCount: Math.round(getNumericValue(row, colMap['slabCount'])),
           totalSqFt: getNumericValue(row, colMap['totalSqFt']),
           msp: getCellValue(row, colMap['msp']).toUpperCase(),
-          stockyardLocation: (getCellValue(row, colMap['location']) as StockyardLocation) || 'Field',
+          thickness: getCellValue(row, colMap['thickness']).toUpperCase(),
+          // Fix: Use 'Field' instead of 'FIELD' as fallback to match StockyardLocation type
+          stockyardLocation: (getCellValue(row, colMap['location']).toUpperCase() as StockyardLocation) || 'Field',
           status: BlockStatus.IN_STOCKYARD,
           transferredToYardAt: new Date().toISOString(),
           arrivalDate: new Date().toISOString().split('T')[0],
@@ -279,6 +328,7 @@ export const Stockyard: React.FC<Props> = ({ blocks, onRefresh, activeStaff, isG
         material: editFormData.material?.toUpperCase(),
         minesMarka: editFormData.minesMarka?.toUpperCase(),
         msp: editFormData.msp?.toUpperCase(),
+        thickness: editFormData.thickness?.toUpperCase(),
         slabLength: Number(editFormData.slabLength),
         slabWidth: Number(editFormData.slabWidth),
         slabCount: Number(editFormData.slabCount),
@@ -332,6 +382,8 @@ export const Stockyard: React.FC<Props> = ({ blocks, onRefresh, activeStaff, isG
             slabCount: Number(newBlockData.slabCount) || 0,
             totalSqFt: Number(newBlockData.totalSqFt) || 0,
             msp: newBlockData.msp?.toUpperCase() || '',
+            thickness: newBlockData.thickness?.toUpperCase() || '',
+            // Fix: Use 'Field' instead of 'FIELD' as fallback to match StockyardLocation type
             stockyardLocation: (newBlockData.stockyardLocation as StockyardLocation) || 'Field',
             transferredToYardAt: new Date().toISOString()
         };
@@ -417,12 +469,13 @@ export const Stockyard: React.FC<Props> = ({ blocks, onRefresh, activeStaff, isG
 
   const handleExportExcel = () => {
     const reportData = yardBlocks.map(b => ({
-      jobNo: b.jobNo, company: b.company, material: b.material, marka: b.minesMarka || '', dim: `${Math.round(b.slabLength || 0)} x ${Math.round(b.slabWidth || 0)}`,
+      jobNo: b.jobNo, company: b.company, material: b.material, marka: b.minesMarka || '', thickness: formatThickness(b.thickness), dim: `${Math.round(b.slabLength || 0)} x ${Math.round(b.slabWidth || 0)}`,
       slabs: b.slabCount, sqFt: b.totalSqFt?.toFixed(2), weight: b.weight?.toFixed(2), location: b.stockyardLocation, msp: b.msp || ''
     }));
     const columns = [
       { header: 'Job No', key: 'jobNo', width: 15 }, { header: 'Company', key: 'company', width: 20 },
       { header: 'Material', key: 'material', width: 20 }, { header: 'Marka', key: 'marka', width: 15 },
+      { header: 'Thickness', key: 'thickness', width: 12 },
       { header: 'Dimensions', key: 'dim', width: 15 },
       { header: 'Slabs', key: 'slabs', width: 10 }, { header: 'Sq Ft', key: 'sqFt', width: 15 },
       { header: 'Weight', key: 'weight', width: 12 }, { header: 'Location', key: 'location', width: 15 },
@@ -573,7 +626,15 @@ export const Stockyard: React.FC<Props> = ({ blocks, onRefresh, activeStaff, isG
                    </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-2 border-t border-[#f5f5f4] pt-3 mt-3">
+                <div className="grid grid-cols-2 gap-3 border-t border-[#f5f5f4] pt-3 mt-3">
+                   <div className="flex justify-between items-center bg-[#faf9f6] p-2 rounded border border-stone-100">
+                      <div className="text-[9px] font-bold text-[#a8a29e] uppercase tracking-wider">Thickness</div>
+                      <div className="text-xs font-black text-[#5c4033]">{formatThickness(block.thickness)}</div>
+                   </div>
+                   <div className="flex justify-between items-center bg-[#faf9f6] p-2 rounded border border-stone-100">
+                      <div className="text-[9px] font-bold text-[#a8a29e] uppercase tracking-wider">Slabs / Pcs</div>
+                      <div className="text-xs font-black text-[#5c4033]">{block.slabCount || '-'}</div>
+                   </div>
                    <div className="flex justify-between items-center">
                       <div className="text-[9px] font-bold text-[#a8a29e] uppercase tracking-wider">Weight & Material</div>
                       <div className="text-xs font-bold text-[#44403c] uppercase">{block.weight?.toFixed(2)} T | {block.material}</div>
@@ -620,7 +681,9 @@ export const Stockyard: React.FC<Props> = ({ blocks, onRefresh, activeStaff, isG
                   <th className="px-6 py-4 w-12 text-center">{!isGuest && (<input type="checkbox" checked={isAllSelected} onChange={handleSelectAll} className="w-4 h-4 rounded border-stone-300 text-[#5c4033] cursor-pointer" />)}</th>
                   <th className="px-6 py-4">Job & Party</th>
                   <th className="px-6 py-4">Material</th>
+                  <th className="px-6 py-4">Thickness</th>
                   <th className="px-6 py-4">Dimensions</th>
+                  <th className="px-6 py-4 text-center">Pcs (Slabs)</th>
                   <th className="px-6 py-4 text-center">Weight (T)</th>
                   <th className="px-6 py-4 text-center">Qty (SqFt)</th>
                   <th className="px-6 py-4 text-center">Recovery (ft/T)</th>
@@ -639,7 +702,9 @@ export const Stockyard: React.FC<Props> = ({ blocks, onRefresh, activeStaff, isG
                       <td className="px-6 py-4 text-center">{!isGuest && (<input type="checkbox" checked={isSelected} onChange={() => handleToggleId(block.id)} className="w-4 h-4 rounded border-stone-300 text-[#5c4033] cursor-pointer" />)}</td>
                       <td className="px-6 py-4"><div className="font-bold text-sm">#{block.jobNo}</div><div className="text-[10px] font-medium text-[#78716c] uppercase">{block.company}</div></td>
                       <td className="px-6 py-4 text-xs font-bold text-[#57534e]"><div>{block.material}</div><div className="text-[9px] text-[#a8a29e]">{block.minesMarka || '-'}</div></td>
+                      <td className="px-6 py-4 text-center font-bold text-xs text-[#5c4033]">{formatThickness(block.thickness)}</td>
                       <td className="px-6 py-4 text-xs font-mono">{Math.round(block.slabLength || 0)} x {Math.round(block.slabWidth || 0)}</td>
+                      <td className="px-6 py-4 text-center font-black text-sm text-[#292524]">{block.slabCount || '-'}</td>
                       <td className="px-6 py-4 text-center font-bold text-sm">{block.weight?.toFixed(2)}</td>
                       <td className="px-6 py-4 text-center"><div className="font-black text-[#5c4033]">{block.totalSqFt?.toFixed(2)}</div><div className="text-[9px] text-[#a8a29e]">{block.slabCount} pcs</div></td>
                       <td className="px-6 py-4 text-center"><span className={`px-2 py-0.5 rounded text-[10px] font-black ${Number(recovery) > 250 ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-stone-50 text-stone-600 border border-stone-100'}`}>{recovery}</span></td>
@@ -661,7 +726,7 @@ export const Stockyard: React.FC<Props> = ({ blocks, onRefresh, activeStaff, isG
                                title="Sell Block"
                             ><i className="fas fa-shopping-cart"></i></button>
                             <button onClick={() => { setEditingBlock(block); setEditFormData(block); }} className="text-stone-400 hover:text-[#5c4033] p-2 hover:bg-stone-50 rounded-lg active:scale-95 transition-all"><i className="fas fa-edit"></i></button>
-                            <button onClick={() => handleDelete(block.id, block.jobNo)} className="text-stone-300 hover:text-red-500 p-2 hover:bg-red-50 rounded-lg active:scale-95 transition-all"><i className="fas fa-trash-alt"></i></button>
+                            <button onClick={() => handleDelete(block.id, block.jobNo)} className="text-stone-300 hover:text-red-500 p-2 hover:bg-red-50 rounded-lg active:scale-95 transition-all"><i className="fas fa-trash-alt text-sm"></i></button>
                           </div>
                         )}
                       </td>
@@ -740,6 +805,7 @@ export const Stockyard: React.FC<Props> = ({ blocks, onRefresh, activeStaff, isG
                 <div className="col-span-2"><label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Job No</label><input className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" value={editFormData.jobNo || ''} onChange={e => setEditFormData({...editFormData, jobNo: e.target.value})} /></div>
                 <div><label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Material</label><input className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" value={editFormData.material || ''} onChange={e => setEditFormData({...editFormData, material: e.target.value})} /></div>
                 <div><label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Marka</label><input className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" value={editFormData.minesMarka || ''} onChange={e => setEditFormData({...editFormData, minesMarka: e.target.value})} /></div>
+                <div><label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Thickness</label><input className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" value={editFormData.thickness || ''} onChange={e => setEditFormData({...editFormData, thickness: e.target.value})} /></div>
                 <div><label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Weight (T)</label><input type="number" step="0.01" className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" value={editFormData.weight || 0} onChange={e => setEditFormData({...editFormData, weight: Number(e.target.value)})} /></div>
                 <div><label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">MSP (Price)</label><input className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-black text-amber-800" value={editFormData.msp || ''} onChange={e => setEditFormData({...editFormData, msp: e.target.value})} /></div>
                 <div><label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Slab Size</label><div className="flex gap-2"><input type="number" step="0.01" className="w-1/2 bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm" placeholder="L" value={editFormData.slabLength || 0} onChange={e => setEditFormData({...editFormData, slabLength: Number(e.target.value)})} /><input type="number" step="0.01" className="w-1/2 bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm" placeholder="W" value={editFormData.slabWidth || 0} onChange={e => setEditFormData({...editFormData, slabWidth: Number(e.target.value)})} /></div></div>
@@ -758,9 +824,26 @@ export const Stockyard: React.FC<Props> = ({ blocks, onRefresh, activeStaff, isG
              <div className="flex justify-between items-center mb-6 border-b pb-4"><h3 className="text-xl font-bold text-[#292524]">Add Manual Stock</h3><button onClick={() => setAddModalOpen(false)}><i className="fas fa-times text-[#a8a29e]"></i></button></div>
              <form onSubmit={handleAddManualBlock} className="grid grid-cols-2 gap-6">
                 <div className="col-span-2"><label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Job No</label><input className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" placeholder="JOB-001" value={newBlockData.jobNo || ''} onChange={e => setNewBlockData({...newBlockData, jobNo: e.target.value})} required /></div>
-                <div><label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Company</label><input className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" placeholder="COMPANY NAME" value={newBlockData.company || ''} onChange={e => setNewBlockData({...newBlockData, company: e.target.value})} required /></div>
+                <div>
+                   <label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Company</label>
+                   <input 
+                      className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" 
+                      placeholder="COMPANY NAME" 
+                      value={newBlockData.company || ''} 
+                      onChange={e => setNewBlockData({...newBlockData, company: e.target.value})} 
+                      onBlur={handleManualCompanyBlur}
+                      list="global-company-suggestions"
+                      required 
+                      autoComplete="off"
+                      inputMode="text"
+                   />
+                   <datalist id="global-company-suggestions">
+                      {globalCompanies.map(c => <option key={c} value={c} />)}
+                   </datalist>
+                </div>
                 <div><label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Material</label><input className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" placeholder="MATERIAL" value={newBlockData.material || ''} onChange={e => setNewBlockData({...newBlockData, material: e.target.value})} /></div>
                 <div><label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Marka</label><input className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" value={newBlockData.minesMarka || ''} onChange={e => setNewBlockData({...newBlockData, minesMarka: e.target.value})} /></div>
+                <div><label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Thickness</label><input className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" placeholder="e.g. 18mm" value={newBlockData.thickness || ''} onChange={e => setNewBlockData({...newBlockData, thickness: e.target.value})} /></div>
                 <div><label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Weight (T)</label><input type="number" step="0.01" className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-bold" value={newBlockData.weight || ''} onChange={e => setNewBlockData({...newBlockData, weight: Number(e.target.value)})} /></div>
                 <div><label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">MSP (Price)</label><input className="w-full bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm font-black text-amber-800" value={newBlockData.msp || ''} onChange={e => setNewBlockData({...newBlockData, msp: e.target.value})} /></div>
                 <div><label className="block text-[10px] font-bold text-[#78716c] mb-1.5 uppercase">Slab Size</label><div className="flex gap-2"><input type="number" step="0.01" className="w-1/2 bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm" placeholder="L" value={newBlockData.slabLength || ''} onChange={e => setNewBlockData({...newBlockData, slabLength: Number(e.target.value)})} /><input type="number" step="0.01" className="w-1/2 bg-[#faf9f6] border border-[#d6d3d1] p-3 rounded-lg text-sm" placeholder="W" value={newBlockData.slabWidth || ''} onChange={e => setNewBlockData({...newBlockData, slabWidth: Number(e.target.value)})} /></div></div>

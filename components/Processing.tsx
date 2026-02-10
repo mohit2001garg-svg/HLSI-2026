@@ -33,18 +33,27 @@ export const Processing: React.FC<Props> = ({ blocks, onRefresh, isGuest, active
   const [saleFormData, setSaleFormData] = useState({ soldTo: '', billNo: '', soldSqFt: '' });
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
-  // Derive unique companies for the dropdown
+  const normalize = (s: string) => (s || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+
+  // Derive unique companies for the dropdown (Merged variations)
   const companies = useMemo(() => {
-    const list = blocks
+    const map = new Map<string, string>();
+    blocks
       .filter(b => b.status === BlockStatus.PROCESSING && !b.isSentToResin)
-      .map(b => b.company);
-    return Array.from(new Set(list)).sort();
+      .forEach(b => {
+        const name = b.company.trim();
+        const norm = normalize(name);
+        if (norm && !map.has(norm)) {
+          map.set(norm, name);
+        }
+      });
+    return Array.from(map.values()).sort();
   }, [blocks]);
 
   const processingBlocks = useMemo(() => {
     return blocks
       .filter(b => b.status === BlockStatus.PROCESSING && !b.isSentToResin)
-      .filter(b => selectedCompany === 'ALL' || b.company === selectedCompany)
+      .filter(b => selectedCompany === 'ALL' || normalize(b.company) === normalize(selectedCompany))
       .filter(b => 
         b.jobNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
         b.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -342,20 +351,6 @@ export const Processing: React.FC<Props> = ({ blocks, onRefresh, isGuest, active
           </div>
         )}
       </div>
-
-      {/* IMPORT SUMMARY REPORT */}
-      {importSummary && (importSummary.duplicates.length > 0 || importSummary.invalid.length > 0) && (
-        <div className="bg-amber-50 border-l-4 border-amber-400 p-4 rounded-r-xl shadow-sm">
-           <div className="flex justify-between items-start mb-2">
-              <span className="text-xs font-bold text-amber-900 uppercase">Import Log</span>
-              <button onClick={() => setImportSummary(null)} className="text-amber-400"><i className="fas fa-times"></i></button>
-           </div>
-           {/* Details omitted for brevity but preserved in logic */}
-           <div className="text-[10px] text-amber-800">
-             {importSummary.success} imported, {importSummary.duplicates.length} duplicates.
-           </div>
-        </div>
-      )}
 
       {/* SUMMARY STATS */}
       <div className="grid grid-cols-3 gap-2">

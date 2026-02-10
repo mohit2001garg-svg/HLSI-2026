@@ -24,10 +24,12 @@ export const ReadyStock: React.FC<Props> = ({ blocks, onRefresh, isGuest, active
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const normalize = (s: string) => (s || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+
   const readyBlocks = useMemo(() => {
     return blocks
       .filter(b => b.status === BlockStatus.COMPLETED)
-      .filter(b => selectedCompany === 'ALL' ? true : b.company === selectedCompany)
+      .filter(b => selectedCompany === 'ALL' ? true : normalize(b.company) === normalize(selectedCompany))
       .filter(b => {
         const dateStr = b.endTime || b.resinEndTime || b.arrivalDate;
         if (!dateStr) return true;
@@ -40,7 +42,19 @@ export const ReadyStock: React.FC<Props> = ({ blocks, onRefresh, isGuest, active
       .sort((a, b) => new Date(b.endTime || b.resinEndTime || 0).getTime() - new Date(a.endTime || a.resinEndTime || 0).getTime());
   }, [blocks, searchTerm, selectedCompany, selectedMonth, selectedYear]);
 
-  const uniqueCompanies = useMemo(() => Array.from(new Set(blocks.filter(b => b.status === BlockStatus.COMPLETED).map(b => b.company))).sort(), [blocks]);
+  const uniqueCompanies = useMemo(() => {
+    const map = new Map<string, string>();
+    blocks
+      .filter(b => b.status === BlockStatus.COMPLETED)
+      .forEach(b => {
+        const name = b.company.trim();
+        const norm = normalize(name);
+        if (norm && !map.has(norm)) {
+          map.set(norm, name);
+        }
+      });
+    return Array.from(map.values()).sort();
+  }, [blocks]);
 
   // Helpers omitted for brevity ...
   const getCellValue = (row: any, colNumber?: number): string => {

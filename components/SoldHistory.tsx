@@ -30,14 +30,26 @@ export const SoldHistory: React.FC<Props> = ({ blocks, onRefresh, isGuest, activ
   const [isAreaSale, setIsAreaSale] = useState(false); // Checkbox state
   const [isSaving, setIsSaving] = useState(false);
 
+  const normalize = (s: string) => (s || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+
   const uniqueCompanies = useMemo(() => {
-    return Array.from(new Set(blocks.filter(b => b.status === BlockStatus.SOLD).map(b => b.company))).sort();
+    const map = new Map<string, string>();
+    blocks
+      .filter(b => b.status === BlockStatus.SOLD)
+      .forEach(b => {
+        const name = b.company.trim();
+        const norm = normalize(name);
+        if (norm && !map.has(norm)) {
+          map.set(norm, name);
+        }
+      });
+    return Array.from(map.values()).sort();
   }, [blocks]);
 
   const soldBlocks = useMemo(() => {
     return blocks
       .filter(b => b.status === BlockStatus.SOLD)
-      .filter(b => selectedCompany === 'ALL' ? true : b.company === selectedCompany)
+      .filter(b => selectedCompany === 'ALL' ? true : normalize(b.company) === normalize(selectedCompany))
       .filter(b => {
         if (!b.soldAt) return true;
         const date = new Date(b.soldAt);

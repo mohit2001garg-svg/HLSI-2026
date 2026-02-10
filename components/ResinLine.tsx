@@ -339,47 +339,43 @@ const ResinLineCard: React.FC<{
             {/* Status Card */}
             <div className="bg-[#faf9f6] p-6 lg:p-10 rounded-2xl lg:rounded-3xl border border-[#d6d3d1] shadow-inner">
               <div className="flex flex-col md:flex-row justify-between items-start gap-6 mb-6">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="text-[10px] text-cyan-600 font-medium leading-none">Active Batch</div>
-                    <span className="px-3 py-1 bg-cyan-100 text-cyan-800 text-[10px] rounded-full font-medium leading-none">
+                <div className="flex-1 min-w-0 w-full">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="text-[10px] text-cyan-600 font-bold uppercase tracking-wider leading-none">Active Batch</div>
+                    <span className="px-3 py-1 bg-cyan-100 text-cyan-800 text-[10px] rounded-full font-bold leading-none border border-cyan-200">
                       {activeBlocks[0].resinTreatmentType}
                     </span>
                   </div>
-                  <div className="text-3xl lg:text-4xl font-bold text-[#292524] leading-none tracking-tight">
+                  <div className="text-3xl lg:text-5xl font-black text-[#292524] leading-none tracking-tighter mb-4">
                     {activeBlocks.length} Blocks
                   </div>
-                  <div className="mt-3 text-xs text-[#78716c] font-medium max-h-24 overflow-y-auto">
-                    <ul className="space-y-1">
-                      {activeBlocks.map(b => (
-                        <li key={b.id} className="flex justify-between items-center border-b border-stone-200 pb-1 last:border-0">
-                          <div className="flex flex-col leading-tight">
-                             <span className="font-bold">#{b.jobNo}</span>
-                             <span className="text-[9px] text-[#78716c] uppercase font-bold">{b.company}</span>
-                          </div>
-                          <span className="text-[#57534e]">{b.material}</span>
-                          <span className="text-[#a8a29e]">{b.weight?.toFixed(2)} T</span>
-                        </li>
-                      ))}
-                    </ul>
+                  <div className="mt-2 space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-2">
+                    {activeBlocks.map(b => (
+                      <div key={b.id} className="bg-white border border-stone-200 rounded-xl p-3 shadow-sm grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1">
+                        <div className="font-black text-sm text-[#292524] truncate">#{b.jobNo}</div>
+                        <div className="text-right font-black text-xs text-[#5c4033]">{b.weight?.toFixed(2)} T</div>
+                        <div className="text-[10px] text-[#78716c] font-black uppercase truncate">{b.company}</div>
+                        <div className="text-right text-[10px] font-bold text-[#a8a29e]">{b.material}</div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-                <div className="text-left md:text-right shrink-0">
-                  <div className="text-[10px] text-[#78716c] font-medium mb-2 leading-none">Net treatment time</div>
-                  <div className="text-4xl lg:text-6xl font-medium text-[#292524] mono tracking-tight leading-none">{elapsed}</div>
+                <div className="text-left md:text-right shrink-0 w-full md:w-auto pt-4 md:pt-0 border-t md:border-t-0 border-[#d6d3d1]">
+                  <div className="text-[10px] text-[#78716c] font-bold uppercase tracking-widest mb-2 leading-none">Treatment duration</div>
+                  <div className="text-4xl lg:text-6xl font-medium text-[#292524] mono tracking-tighter leading-none">{elapsed}</div>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-8 border-t border-[#d6d3d1] pt-8">
                 <div>
-                  <div className="text-[10px] text-[#a8a29e] font-medium mb-2">Start timestamp</div>
-                  <div className="text-lg lg:text-xl font-mono text-[#57534e] font-medium tracking-tight leading-none">
+                  <div className="text-[10px] text-[#a8a29e] font-bold uppercase tracking-wider mb-2">Start timestamp</div>
+                  <div className="text-lg lg:text-xl font-mono text-[#57534e] font-bold tracking-tight leading-none">
                     {new Date(activeBlocks[0].resinStartTime!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </div>
                 </div>
                 <div>
-                  <div className="text-[10px] text-[#a8a29e] font-medium mb-2">Total downtime</div>
-                  <div className="text-lg lg:text-xl font-mono text-amber-600 font-medium tracking-tight leading-none">
+                  <div className="text-[10px] text-[#a8a29e] font-bold uppercase tracking-wider mb-2">Total downtime</div>
+                  <div className="text-lg lg:text-xl font-mono text-amber-600 font-bold tracking-tight leading-none">
                     {(activeBlocks[0].resinPowerCuts || []).reduce((acc, pc) => acc + pc.durationMinutes, 0)} <span className="text-[10px]">MINS</span>
                   </div>
                 </div>

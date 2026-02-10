@@ -45,6 +45,9 @@ export const Purchase: React.FC<Props> = ({ blocks, onRefresh, activeStaff, isGu
     weight: '',
   });
 
+  // --- NORMALIZATION LOGIC ---
+  const normalize = (s: string) => (s || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+
   // --- DATA FILTERING & GROUPING ---
   const purchaseBlocks = useMemo(() => 
     blocks
@@ -53,19 +56,51 @@ export const Purchase: React.FC<Props> = ({ blocks, onRefresh, activeStaff, isGu
     [blocks]
   );
 
+  const existingSuppliers = useMemo(() => {
+    const map = new Map<string, string>();
+    blocks.forEach(b => {
+      if (b.supplier) {
+        const name = b.supplier.trim();
+        const norm = normalize(name);
+        if (norm && !map.has(norm)) {
+          map.set(norm, name);
+        }
+      }
+    });
+    return Array.from(map.values()).sort();
+  }, [blocks]);
+
   const suppliers = useMemo(() => {
-    const s = new Set<string>();
-    purchaseBlocks.forEach(b => { if (b.supplier) s.add(b.supplier.toUpperCase().trim()); });
-    return Array.from(s).sort();
+    const map = new Map<string, string>();
+    purchaseBlocks.forEach(b => {
+      if (b.supplier) {
+        const name = b.supplier.trim();
+        const norm = normalize(name);
+        if (norm && !map.has(norm)) {
+          map.set(norm, name);
+        }
+      }
+    });
+    return Array.from(map.values()).sort();
   }, [purchaseBlocks]);
+
+  const handleSupplierBlur = () => {
+    const current = formData.supplier.trim();
+    if (!current) return;
+    const norm = normalize(current);
+    const match = existingSuppliers.find(s => normalize(s) === norm);
+    if (match && match !== current) {
+      setFormData(prev => ({ ...prev, supplier: match }));
+    }
+  };
 
   const filtered = useMemo(() => {
     return purchaseBlocks.filter(b => {
-      const sMatch = selectedSupplier === 'ALL' || b.supplier?.toUpperCase() === selectedSupplier;
+      const sMatch = selectedSupplier === 'ALL' || normalize(b.supplier || '') === normalize(selectedSupplier);
       const qMatch = b.jobNo.toLowerCase().includes(searchTerm.toLowerCase()) || 
                      b.material.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                     b.supplier?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                     b.shipmentGroup?.toLowerCase().includes(searchTerm.toLowerCase());
+                     (b.supplier && b.supplier.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                     (b.shipmentGroup && b.shipmentGroup.toLowerCase().includes(searchTerm.toLowerCase()));
       return sMatch && qMatch;
     });
   }, [purchaseBlocks, selectedSupplier, searchTerm]);
@@ -162,11 +197,16 @@ export const Purchase: React.FC<Props> = ({ blocks, onRefresh, activeStaff, isGu
         const jobNoStr: string = String(getVal(colMap['jobNo'])).toUpperCase();
         if (!jobNoStr || existingJobNos.has(jobNoStr) || seenInFile.has(jobNoStr)) return;
 
+        // Apply smart matching during import
+        const rawSupplier = getVal(colMap['supplier']).toUpperCase() || 'UNKNOWN';
+        const normSupplier = normalize(rawSupplier);
+        const matchedSupplier = existingSuppliers.find(s => normalize(s) === normSupplier) || rawSupplier;
+
         newBlocks.push({
           id: crypto.randomUUID(),
           jobNo: jobNoStr,
           company: 'HI-LINE',
-          supplier: getVal(colMap['supplier']).toUpperCase() || 'UNKNOWN',
+          supplier: matchedSupplier,
           material: getVal(colMap['material']).toUpperCase() || 'UNKNOWN',
           country: getVal(colMap['country']).toUpperCase() || '-',
           weight: getNumericValue(row, colMap['weight']),
@@ -410,7 +450,22 @@ export const Purchase: React.FC<Props> = ({ blocks, onRefresh, activeStaff, isGu
            <h3 className="text-lg font-bold text-[#5c4033] uppercase mb-6 pb-2 border-b">Register Purchase</h3>
            <form onSubmit={handleSubmitPurchase} className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div><label className={labelStyle}>Job No</label><input required className={inputStyle} value={formData.jobNo} onChange={e => setFormData({...formData, jobNo: e.target.value})} /></div>
-              <div><label className={labelStyle}>Supplier</label><input required className={inputStyle} value={formData.supplier} onChange={e => setFormData({...formData, supplier: e.target.value})} /></div>
+              <div>
+                <label className={labelStyle}>Supplier</label>
+                <input 
+                  required 
+                  className={inputStyle} 
+                  value={formData.supplier} 
+                  onChange={e => setFormData({...formData, supplier: e.target.value})} 
+                  onBlur={handleSupplierBlur}
+                  list="supplier-suggestions"
+                  autoComplete="off"
+                  inputMode="text"
+                />
+                <datalist id="supplier-suggestions">
+                   {existingSuppliers.map(s => <option key={s} value={s} />)}
+                </datalist>
+              </div>
               <div><label className={labelStyle}>Material</label><input required className={inputStyle} value={formData.material} onChange={e => setFormData({...formData, material: e.target.value})} /></div>
               <div><label className={labelStyle}>Country</label><input required className={inputStyle} value={formData.country} onChange={e => setFormData({...formData, country: e.target.value})} /></div>
               <div><label className={labelStyle}>Weight (T)</label><input required type="number" step="0.01" className={inputStyle} value={formData.weight} onChange={e => setFormData({...formData, weight: e.target.value})} /></div>
